@@ -163,4 +163,4 @@ cython_debug/
 cache
 .DS_Store
 secrets.toml
-
+allas_conf
