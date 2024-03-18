@@ -16,11 +16,11 @@ with tab1:
     gdf = None
     s1,s2 = st.columns(2)
     add = s1.text_input('Kohdeosoite')
-    tag = s2.radio('',['Land cover','Land-use','Both'],horizontal=True)
+    tag = s2.radio('',['Land cover','Land-use','Natural'],horizontal=True)
     if tag == 'Land-use':
         tags = {'landuse':True}
         name = f"Maankäyttö {add}"
-    elif tag == 'Land cover':
+    elif tag == 'Natural':
         tags = {'natural':True}
         name = f"Maanpeite {add}"
     else:

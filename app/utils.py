@@ -96,7 +96,7 @@ def plot_landuse(gdf,name,col='type'):
     return fig_map
 
 def plot_osm_areas(gdf):
-    fig = px.bar(gdf,x='area',y='type',color='type')
+    fig = px.bar(gdf,x='area',y='type',color='type',log_x=True)
     fig.update_xaxes(range=[0,gdf['area'].quantile(0.99)])
     return fig
 
