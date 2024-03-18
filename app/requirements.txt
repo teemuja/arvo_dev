@@ -13,7 +13,10 @@ momepy
 #apis
 geocoder
 requests
+st-gsheets-connection
 boto3
+s3fs
+pyarrow
 duckdb
 
 #ML
@@ -21,6 +24,9 @@ scikit-learn
 
 #viz
 plotly
+folium
+matplotlib
+mapclassify
 
 #notebook
 ipywidgets
