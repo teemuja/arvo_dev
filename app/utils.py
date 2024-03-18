@@ -34,12 +34,13 @@ def check_password():
 def get_landuse(add,radius,tags = {'natural':True,'landuse':True},removeoverlaps=False):
     data = ox.features_from_address(add,dist=radius,tags=tags).reset_index()
     gdf = data.loc[data['geometry'].geom_type.isin(['Polygon', 'MultiPolygon'])]
-    if tags == {'natural':True,'landuse':True}:
-        gdf['type'] = gdf.apply(lambda row: row['landuse'] if pd.notna(row['landuse']) else row['natural'], axis=1)
+    if tags == {'landuse':True}:
+        gdf['type'] = gdf.apply(lambda row: row['landuse'], axis=1)
     elif tags == {'natural':True}:
         gdf['type'] = gdf.apply(lambda row: row['natural'], axis=1)
     else:
-        gdf['type'] = gdf.apply(lambda row: row['landuse'], axis=1)
+        gdf['type'] = gdf.apply(lambda row: row['landuse'] if pd.notna(row['landuse']) else row['natural'], axis=1)
+    
     #clip
     loc = ox.geocode(add)
     center_gdf = gpd.GeoDataFrame(geometry=[Point(loc[1],loc[0])], crs="EPSG:4326")
