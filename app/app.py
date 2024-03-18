@@ -22,10 +22,10 @@ with tab1:
         name = f"Maankäyttö {add}"
     elif tag == 'Natural':
         tags = {'natural':True}
-        name = f"Maanpeite {add}"
+        name = f"Luontoalueet {add}"
     else:
         tags = {'natural':True,'landuse':['grass','meadow','forest']}
-        name = f"Maankäyttö ja peite {add}"
+        name = f"Maanpeite {add}"
     if add:
         gdf = utils.get_landuse(add=add,tags=tags,radius=500)
         col="type"
