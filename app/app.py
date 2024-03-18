@@ -24,10 +24,10 @@ with tab1:
         tags = {'natural':True}
         name = f"Maanpeite {add}"
     else:
-        tags = {'natural':True,'landuse':True}
+        tags = {'natural':True,'landuse':['grass','meadow','forest']}
         name = f"Maankäyttö ja peite {add}"
     if add:
-        gdf = utils.get_landuse(add=add,tags=tags,radius=1000)
+        gdf = utils.get_landuse(add=add,tags=tags,radius=500)
         col="type"
         fig_bar = utils.plot_osm_areas(gdf)
         st.plotly_chart(fig_bar, use_container_width=True, config = {'displayModeBar': False})
@@ -61,7 +61,7 @@ with tab2:
             ana = st.form_submit_button('Analysoi')
             
     if data is not None:
-        name = "Esimerkkisuunnitelma"
+        name = f"Esimerkki {VE}"
         df = st.data_editor(data, hide_index=True, height=200, disabled=("wkt"), use_container_width=True)
         feats = df.drop(columns='wkt').columns.tolist()
         col = st.selectbox('Visualisoi tieto',feats[1:-1])
