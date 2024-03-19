@@ -32,10 +32,24 @@ with tab1:
         fig_bar = utils.plot_osm_areas(gdf)
         st.plotly_chart(fig_bar, use_container_width=True, config = {'displayModeBar': False})
         
-    if gdf is not None:  
-        fig_osm = utils.plot_landuse(gdf,name=name,col=col)
-        st.plotly_chart(fig_osm, use_container_width=True, config = {'displayModeBar': False})
-        
+    if gdf is not None:
+        with st.status('Kartta'):
+            fig_osm = utils.plot_landuse(gdf,name=name,col=col)
+            st.plotly_chart(fig_osm, use_container_width=True, config = {'displayModeBar': False})
+            df_edit = gdf.drop(columns="geometry")
+            df_edit = df_edit.loc[df_edit['area'] > 1000]
+            df_edit['area'] = round(df_edit['area'],-1)
+            df_edit['K'] = None
+            df_edit['X'] = 0.0
+            
+        with st.expander('Viherkerroinlaskelma'):
+            cols = ['area','K','X']
+            new_df = st.data_editor(df_edit[cols],use_container_width=True)
+            new_df['Kx'] = new_df['area']*new_df['X']
+            avk = round((new_df.loc[new_df['K'].notna()]['area'].sum() + new_df['Kx'].sum()) / new_df['area'].sum(),2)
+            kx_med = round(new_df['X'].median(),2)
+            st.metric('Alueellinen Viherkerroin',value=avk)
+
 with tab2:
     data = None
     VE = st.radio("Valitse testisuunnitelman versio",['VE1','VE2'],horizontal=True)
@@ -69,12 +83,26 @@ with tab2:
             try: 
                 df['geometry'] = df.wkt.apply(wkt.loads)
                 gdf = gpd.GeoDataFrame(df,geometry='geometry',crs=4326)
+                df_edit = gdf.drop(columns="geometry")
+                df_edit = df_edit.loc[df_edit['area'] > 1000]
+                df_edit['area'] = round(df_edit['area'],-1)
+                if "K" not in df_edit.columns:
+                    df_edit['K'] = df_edit['element_type']
+                if "X" not in df_edit.columns:
+                    df_edit['X'] = df_edit['coef']
             except:
                 st.stop()
         
         if gdf is not None:
+            with st.status('Kartta'):
                 fig_slu = utils.plot_landuse(gdf,name=name,col=col)
                 st.plotly_chart(fig_slu, use_container_width=True, config = {'displayModeBar': False})
+            with st.expander('Viherkerroinlaskelma'):
+                cols = ['area','K','X']
+                new_df = st.data_editor(df_edit[cols],use_container_width=True)
+                new_df['Kx'] = new_df['area']*new_df['X']
+                avk = round((new_df.loc[new_df['K'].notna()]['area'].sum() + new_df['Kx'].sum()) / new_df['area'].sum(),2)
+                kx_med = round(new_df['X'].median(),2)
+                st.metric('Alueellinen Viherkerroin',value=avk)
             
-            
-            
+
