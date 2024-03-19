@@ -117,6 +117,6 @@ with tab2:
 #footer
 st.markdown('---')
 footer_title = '''
-[![MIT license](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/teemuja) 
+[![MIT license](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/teemuja/arvo_dev/blob/main/LICENSE) 
 '''
 st.markdown(footer_title)
