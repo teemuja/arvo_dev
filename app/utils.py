@@ -65,8 +65,10 @@ def get_landuse(add,radius,tags = {'natural':True,'landuse':True},removeoverlaps
         filtered_gdf['area'] = filtered_gdf.area
         
     #cols
-    columns=['name','type','area','geometry']
-    return  filtered_gdf.to_crs(4326)[columns]
+    columns_to_select = ['name','type','area','geometry']
+    selected_columns = [col for col in columns_to_select if col in filtered_gdf.columns]
+    
+    return  filtered_gdf.to_crs(4326)[selected_columns]
 
 def plot_landuse(gdf,name,col='type'):
     lat = gdf.unary_union.centroid.y
