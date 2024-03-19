@@ -6,9 +6,11 @@ from shapely.geometry import Point, Polygon, box
 import random
 import plotly.express as px
 import osmnx as ox
+import geocoder
 ox.config(use_cache=True, log_console=True)
 
 px.set_mapbox_access_token(st.secrets['plotly']['MAPBOX_TOKEN'])
+mbtoken = st.secrets['plotly']['MAPBOX_TOKEN']
 arvo_style = st.secrets['plotly']['MAPBOX_STYLE']
 
 #auth
@@ -32,18 +34,31 @@ def check_password():
         return True
 
 def get_landuse(add,radius,tags = {'natural':True,'landuse':True},removeoverlaps=False):
-    data = ox.features_from_address(add,dist=radius,tags=tags).reset_index()
+    loc = geocoder.mapbox(add,key=mbtoken)
+    point = (loc.lat,loc.lng)
+    data = ox.features_from_point(point,dist=radius,tags=tags).reset_index()
     gdf = data.loc[data['geometry'].geom_type.isin(['Polygon', 'MultiPolygon'])]
     if tags == {'landuse':True}:
-        gdf['type'] = gdf.apply(lambda row: row['landuse'], axis=1)
+        if 'landuse' in gdf.columns:
+            gdf['type'] = gdf.apply(lambda row: row['landuse'], axis=1)
+        else:
+            st.warning('ei dataa')
+            st.stop()
     elif tags == {'natural':True}:
-        gdf['type'] = gdf.apply(lambda row: row['natural'], axis=1)
+        if 'natural' in gdf.columns:
+            gdf['type'] = gdf.apply(lambda row: row['natural'], axis=1)
+        else:
+            st.warning('ei dataa')
+            st.stop()
     else:
-        gdf['type'] = gdf.apply(lambda row: row['landuse'] if pd.notna(row['landuse']) else row['natural'], axis=1)
+        if 'natural' or 'landuse' in gdf.columns:
+            gdf['type'] = gdf.apply(lambda row: row['landuse'] if pd.notna(row['landuse']) else row['natural'], axis=1)
+        else:
+            st.warning('ei dataa')
+            st.stop()
     
     #clip
-    loc = ox.geocode(add)
-    center_gdf = gpd.GeoDataFrame(geometry=[Point(loc[1],loc[0])], crs="EPSG:4326")
+    center_gdf = gpd.GeoDataFrame(geometry=[Point(loc.lng,loc.lat)], crs="EPSG:4326")
     utm = center_gdf.estimate_utm_crs()
     gdf_utm = gdf.to_crs(utm)
     gdf_utm['area'] = gdf_utm.area
