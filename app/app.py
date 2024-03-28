@@ -5,12 +5,14 @@ from shapely import wkt
 from streamlit_gsheets import GSheetsConnection
 import utils
 
+st.set_page_config(page_title="NDP Data Papers", layout="wide")
+
 st.header("A R V O dev",divider='green')
 st.markdown("Tutkimusappi alueviherkertoimen kehitykseen [ARVO](https://figbc.fi/arvo-viherrakenteen-arviointi-ja-vahvistaminen-kaupunkien-maankayton-suunnittelussa)-hankkeessa.")
 
 conn = st.connection("gsheets", type=GSheetsConnection)
 
-tab1,tab2 = st.tabs(["Kohdealue-analyysi","Testisuunnitelmat"])
+tab1,tab2,tab3 = st.tabs(["OSM data","HSY avoin data","Testisuunnitelmat"])
 
 with tab1:
     gdf = None
@@ -27,9 +29,9 @@ with tab1:
         tags = {'natural':True,'landuse':['grass','meadow','forest']}
         name = f"Maanpeite {add}"
     if add:
-        gdf = utils.get_landuse(add=add,tags=tags,radius=500)
+        gdf = utils.get_osm_landuse(add=add,tags=tags,radius=500)
         col="type"
-        fig_bar = utils.plot_osm_areas(gdf)
+        fig_bar = utils.plot_area_bars(gdf)
         st.plotly_chart(fig_bar, use_container_width=True, config = {'displayModeBar': False})
         
     if gdf is not None:
@@ -59,6 +61,32 @@ with tab1:
             s2.markdown(latex_code,unsafe_allow_html=True)
 
 with tab2:
+    gdf2 = None
+    add2 = st.text_input('Kohdeosoite',key='hsy')
+    
+    if add2:
+        gdf2 = utils.get_hsy_maanpeite(add=add2,radius=250)
+        
+    col2="kuvaus"
+    if gdf2 is not None:
+        colors_hsy = {
+            "Muu avoin matala kasvillisuus":"DarkKhaki",
+            "puusto, 2 m - 10 m":"DarkSeaGreen",
+            "puusto, 10 m - 15 m":"OliveDrab",
+            "puusto, 15 m - 20 m":"DarkOliveGreen",
+            "Puusto yli 20 m":"DarkGreen"
+            }
+        fig_bar2 = utils.plot_area_bars(gdf2,x='p_ala_m2',y='kuvaus',color='kuvaus',color_map=colors_hsy)
+        st.plotly_chart(fig_bar2, use_container_width=True, config = {'displayModeBar': False})
+        
+        with st.status("Alueet karttalla"):
+            fig_osm2 = utils.plot_landuse(gdf2,name=name,col=col2,color_map=colors_hsy,zoom=16)
+            st.plotly_chart(fig_osm2, use_container_width=True, config = {'displayModeBar': False})
+        with st.expander('hsy avoin data tasot'):
+            utils.print_wfs_layers()
+
+
+with tab3:
     data = None
     VE = st.radio("Valitse testisuunnitelman versio",['VE1','VE2'],horizontal=True)
     if VE == 'VE1':

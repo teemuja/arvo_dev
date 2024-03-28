@@ -1,12 +1,17 @@
+
 #utils.py
 import streamlit as st
 import pandas as pd
 import geopandas as gpd
 from shapely.geometry import Point, Polygon, box
 import random
+import geocoder
+from pyproj import Transformer
+import requests
+from io import BytesIO
+import json
 import plotly.express as px
 import osmnx as ox
-import geocoder
 ox.config(use_cache=True, log_console=True)
 
 px.set_mapbox_access_token(st.secrets['plotly']['MAPBOX_TOKEN'])
@@ -33,37 +38,127 @@ def check_password():
     else:
         return True
 
-def get_landuse(add,radius,tags = {'natural':True,'landuse':True},removeoverlaps=False):
-    loc = geocoder.mapbox(add,key=mbtoken)
-    point = (loc.lat,loc.lng)
-    data = ox.features_from_point(point,dist=radius,tags=tags).reset_index()
+
+import xml.etree.ElementTree as ET
+def print_wfs_layers(url = 'https://kartta.hsy.fi/geoserver/wfs'):
+    # Add or adjust parameters as needed for the specific WFS service
+    params = {
+        'service': 'WFS',
+        'request': 'GetCapabilities'
+    }
+    
+    response = requests.get(url, params=params, verify=False)
+    if response.status_code == 200:
+        # Parse the XML response
+        xml_root = ET.fromstring(response.content)
+        
+        # Define the namespace to parse the XML correctly
+        # This namespace is found in the XML response and may vary between services
+        # You might need to adjust the namespace according to the WFS service response
+        namespace = {'wfs': 'http://www.opengis.net/wfs/2.0'}
+        
+        # Find and print all layer names (FeatureType Names)
+        for ft in xml_root.findall('.//wfs:FeatureType', namespace):
+            layer_name = ft.find('wfs:Name', namespace)
+            if layer_name is not None:
+                st.text(layer_name.text)
+    else:
+        print(f"Failed to get capabilities from WFS service, status code: {response.status_code}")
+
+def get_hsy_test(add,layer='asuminen_ja_maankaytto:maanpeite_puusto_2_10m_2022', radius=500):
+    loc = geocoder.mapbox(add, key=mbtoken)
+    lng = loc.lng 
+    lat = loc.lat
+    transformer = Transformer.from_crs("EPSG:4326", "EPSG:3879", always_xy=True)
+    lng_3879, lat_3879 = transformer.transform(loc.lng, loc.lat)
+
+    cql_filter = f"INTERSECTS(geom, BUFFER(POINT({lat_3879} {lng_3879}), {radius}))"
+    url = 'https://kartta.hsy.fi/geoserver/wfs'
+    params = {
+        'service': 'WFS',
+        'version': '2.0',
+        'request': 'GetFeature',
+        'typeName': layer,
+        'outputFormat': "json",
+        'srsName': 'EPSG:3879', # for FIN ETRS89 GK25FIN
+        'CQL_FILTER': cql_filter
+    }
+    response = requests.get(url, params=params, verify=False)
+    if response.status_code == 200:
+        geojson = response.json()  # Get the response as a JSON object
+        if geojson['features']:  # Check if there are any features
+            return gpd.GeoDataFrame.from_features(geojson)
+        else:
+            print("No features found.")
+            return gpd.GeoDataFrame([], columns=['geometry'])
+    else:
+        print(response.text)
+        return None
+        
+def get_hsy_maanpeite(add, radius=500):
+    loc = geocoder.mapbox(add, key=mbtoken)
+    transformer = Transformer.from_crs("EPSG:4326", "EPSG:3879", always_xy=True)
+    lng_3879, lat_3879 = transformer.transform(loc.lng, loc.lat)
+    
+    layer_names = ['asuminen_ja_maankaytto:maanpeite_puusto_2_10m_2022',
+                   'asuminen_ja_maankaytto:maanpeite_puusto_10_15m_2022',
+                   'asuminen_ja_maankaytto:maanpeite_puusto_15_20m_2022',
+                   'asuminen_ja_maankaytto:maanpeite_puusto_yli20m_2022',
+                   'asuminen_ja_maankaytto:maanpeite_muu_avoin_matala_kasvillisuus_2022'
+                   ]
+    
+    def fetch_wfs_layer(layer_name,lng,lat,radius=500):
+        cql_filter = f"WITHIN(geom, BUFFER(POINT({lat} {lng}), {radius}))" #INTERSECTS
+        url = 'https://kartta.hsy.fi/geoserver/wfs'
+        params = {
+            'service': 'WFS',
+            'version': '2.0',
+            'request': 'GetFeature',
+            'typeName': layer_name,
+            'outputFormat': "json",
+            'srsName': 'EPSG:3879', # for FIN ETRS89 GK25FIN
+            'CQL_FILTER': cql_filter
+        }
+        response = requests.get(url, params=params, verify=False)
+        if response.status_code == 200:
+            geojson = response.json()  # Get the response as a JSON object
+            if geojson['features']:  # Check if there are any features
+                return gpd.GeoDataFrame.from_features(geojson)
+            else:
+                print("No features found.")
+                return gpd.GeoDataFrame([], columns=['geometry'])
+        else:
+            print(response.text)
+            return None
+        
+    #loop multiple layers
+    layers = []
+    for layer_name in layer_names:
+        layer_gdf = fetch_wfs_layer(layer_name, lng=lng_3879, lat=lat_3879, radius=radius)
+        if layer_gdf is not None:
+            layers.append(layer_gdf)
+    if layers:
+        result = gpd.GeoDataFrame(pd.concat(layers, ignore_index=True),geometry='geometry',crs=3879)
+        return result.to_crs(4326)
+        
+def get_osm_landuse(add,radius,tags = {'natural':True,'landuse':True},exclude=['bay'],removeoverlaps=False):
+    data = ox.features_from_address(add,dist=radius,tags=tags).reset_index()
     gdf = data.loc[data['geometry'].geom_type.isin(['Polygon', 'MultiPolygon'])]
     if tags == {'landuse':True}:
-        if 'landuse' in gdf.columns:
-            gdf['type'] = gdf.apply(lambda row: row['landuse'], axis=1)
-        else:
-            st.warning('ei dataa')
-            st.stop()
+        gdf['type'] = gdf.apply(lambda row: row['landuse'], axis=1)
     elif tags == {'natural':True}:
-        if 'natural' in gdf.columns:
-            gdf['type'] = gdf.apply(lambda row: row['natural'], axis=1)
-        else:
-            st.warning('ei dataa')
-            st.stop()
+        gdf['type'] = gdf.apply(lambda row: row['natural'], axis=1)
     else:
-        if 'natural' or 'landuse' in gdf.columns:
-            gdf['type'] = gdf.apply(lambda row: row['landuse'] if pd.notna(row['landuse']) else row['natural'], axis=1)
-        else:
-            st.warning('ei dataa')
-            st.stop()
+        gdf['type'] = gdf.apply(lambda row: row['landuse'] if pd.notna(row['landuse']) else row['natural'], axis=1)
     
-    #clip
-    center_gdf = gpd.GeoDataFrame(geometry=[Point(loc.lng,loc.lat)], crs="EPSG:4326")
+    #clip & filter
+    loc = ox.geocode(add)
+    center_gdf = gpd.GeoDataFrame(geometry=[Point(loc[1],loc[0])], crs="EPSG:4326")
     utm = center_gdf.estimate_utm_crs()
-    gdf_utm = gdf.to_crs(utm)
-    gdf_utm['area'] = gdf_utm.area
+    gdf_utm = gdf[~gdf['type'].isin(exclude)].to_crs(utm)
     buffer = center_gdf.to_crs(utm).buffer(radius)
     filtered_gdf = gpd.clip(gdf_utm, buffer)
+    filtered_gdf['area'] = filtered_gdf.area
     
     #remove overlaps
     if removeoverlaps:
@@ -80,12 +175,18 @@ def get_landuse(add,radius,tags = {'natural':True,'landuse':True},removeoverlaps
         filtered_gdf['area'] = filtered_gdf.area
         
     #cols
-    columns_to_select = ['name','type','area','geometry']
-    selected_columns = [col for col in columns_to_select if col in filtered_gdf.columns]
-    
-    return  filtered_gdf.to_crs(4326)[selected_columns]
+    columns=['name','type','area','geometry']
+    return  filtered_gdf.to_crs(4326)[columns]
 
-def plot_landuse(gdf,name,col='type'):
+def plot_landuse(gdf,name,col='type',color_map=None,zoom=14):
+    
+    if color_map is None:
+        unique_categories = gdf[col].unique()
+        colors = px.colors.qualitative.Set2
+        color_map = {category: colors[i % len(colors)] for i, category in enumerate(unique_categories)}
+    
+    cat_order = list(color_map.keys())
+    
     lat = gdf.unary_union.centroid.y
     lon = gdf.unary_union.centroid.x
     fig_map = px.choropleth_mapbox(gdf,
@@ -94,9 +195,11 @@ def plot_landuse(gdf,name,col='type'):
                             title=name,
                             color=col,
                             hover_name=col,
+                            color_discrete_map=color_map,
+                            category_orders={col:cat_order},
                             center={"lat": lat, "lon": lon},
                             mapbox_style=arvo_style,
-                            zoom=13,
+                            zoom=zoom,
                             opacity=0.5,
                             width=1200,
                             height=700
@@ -112,37 +215,15 @@ def plot_landuse(gdf,name,col='type'):
                                 )
     return fig_map
 
-def plot_osm_areas(gdf):
-    fig = px.bar(gdf,x='area',y='type',color='type')
-    fig.update_xaxes(range=[0,gdf['area'].quantile(0.99)])
+def plot_area_bars(gdf,x='area',y='type',color='type',color_map=None):
+    
+    if color_map is None:
+        unique_categories = gdf[color].unique()
+        colors = px.colors.qualitative.Set2
+        color_map = {category: colors[i % len(colors)] for i, category in enumerate(unique_categories)}
+    
+    cat_order = list(color_map.keys())
+    fig = px.bar(gdf,x,y,color,color_discrete_map=color_map,category_orders={color:cat_order})
+    #fig.update_xaxes(range=[0,gdf[x].quantile(0.99)])
     return fig
 
-def create_boxes_from_dict(ks_dict):
-    last_bbox = None
-    last_corner = None
-    data = []  # To hold data for the GeoDataFrame
-    
-    for k, values in ks_dict.items():
-        area, eco_area = values
-        side_length = area**0.5  # Assuming square boxes for simplicity
-        
-        if last_bbox is None:
-            # Arbitrarily place the first box
-            new_bbox = box(60.2826, 24.9384, side_length, side_length)
-        else:
-            # Logic to place the new box relative to the last one, avoiding the last corner used
-            minx, miny, maxx, maxy = last_bbox.bounds
-            corners = [(minx, miny), (minx, maxy), (maxx, miny), (maxx, maxy)]
-            if last_corner in corners:
-                corners.remove(last_corner)
-            new_corner = random.choice(corners)
-            # Example placement logic, places new box to the right of the selected corner
-            new_bbox = box(new_corner[0], new_corner[1], new_corner[0] + side_length, new_corner[1] + side_length)
-            last_corner = new_corner
-        
-        last_bbox = new_bbox
-        data.append([k, new_bbox, area, eco_area])
-    
-    # Create GeoDataFrame
-    gdf = gpd.GeoDataFrame(data, columns=['Key', 'geometry', 'Area', 'Eco_Area'])
-    return gdf
