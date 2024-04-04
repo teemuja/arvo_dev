@@ -3,13 +3,17 @@
 import streamlit as st
 import pandas as pd
 import geopandas as gpd
-from shapely.geometry import Point, Polygon, box
+from shapely.geometry import Point, Polygon, box, LineString
 import random
 import geocoder
+import pyproj
 from pyproj import Transformer
 import requests
 from io import BytesIO
 import json
+import tempfile
+import zipfile
+import os
 import plotly.express as px
 import osmnx as ox
 ox.config(use_cache=True, log_console=True)
@@ -96,7 +100,7 @@ def get_hsy_test(add,layer='asuminen_ja_maankaytto:maanpeite_puusto_2_10m_2022',
         return None
         
 def get_hsy_maanpeite(add, radius=500):
-    loc = geocoder.mapbox(add, key=mbtoken)
+    loc = geocoder.osm(add) #, key=mbtoken)
     transformer = Transformer.from_crs("EPSG:4326", "EPSG:3879", always_xy=True)
     lng_3879, lat_3879 = transformer.transform(loc.lng, loc.lat)
     
@@ -137,6 +141,8 @@ def get_hsy_maanpeite(add, radius=500):
         layer_gdf = fetch_wfs_layer(layer_name, lng=lng_3879, lat=lat_3879, radius=radius)
         if layer_gdf is not None:
             layers.append(layer_gdf)
+        else:
+            return st.warning('Ei tuloksia.')
     if layers:
         result = gpd.GeoDataFrame(pd.concat(layers, ignore_index=True),geometry='geometry',crs=3879)
         return result.to_crs(4326)
@@ -175,17 +181,20 @@ def get_osm_landuse(add,radius,tags = {'natural':True,'landuse':True},exclude=['
         filtered_gdf['area'] = filtered_gdf.area
         
     #cols
-    columns=['name','type','area','geometry']
-    return  filtered_gdf.to_crs(4326)[columns]
+    columns = ['name', 'type', 'area', 'geometry']
+    existing_columns = [col for col in columns if col in filtered_gdf.columns]
+    result_gdf = filtered_gdf.to_crs(4326)[existing_columns]
+    return result_gdf
 
-def plot_landuse(gdf,name,col='type',color_map=None,zoom=14):
+def plot_landuse(gdf,name,hover_name=None,col='type',color_map=None,zoom=14):
     
     if color_map is None:
         unique_categories = gdf[col].unique()
         colors = px.colors.qualitative.Set2
         color_map = {category: colors[i % len(colors)] for i, category in enumerate(unique_categories)}
-    
-    cat_order = list(color_map.keys())
+        cat_order = list(color_map.keys())
+    else:
+        cat_order = list(color_map.keys())
     
     lat = gdf.unary_union.centroid.y
     lon = gdf.unary_union.centroid.x
@@ -194,7 +203,7 @@ def plot_landuse(gdf,name,col='type',color_map=None,zoom=14):
                             locations=gdf.index,
                             title=name,
                             color=col,
-                            hover_name=col,
+                            hover_name=hover_name,
                             color_discrete_map=color_map,
                             category_orders={col:cat_order},
                             center={"lat": lat, "lon": lon},
@@ -227,3 +236,36 @@ def plot_area_bars(gdf,x='area',y='type',color='type',color_map=None):
     #fig.update_xaxes(range=[0,gdf[x].quantile(0.99)])
     return fig
 
+def extract_shapefiles_from_zip(file, geom_type):
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        with zipfile.ZipFile(file, 'r') as zip_ref:
+            zip_ref.extractall(tmp_dir)
+        
+        potential_files = []
+        for filename in os.listdir(tmp_dir):
+            if filename.endswith(".shp"):
+                shapefile_path = os.path.join(tmp_dir, filename)
+                data = gpd.read_file(shapefile_path)
+
+                for col in data.columns:
+                    if data[col].dtype == object:
+                        data[col] = pd.to_numeric(data[col], errors='ignore')  # Convert to numeric if possible
+                
+                if any(data.geometry.geom_type == geom_type):
+                    potential_files.append((data, filename))
+                
+        for data, filename in potential_files:
+            if data.crs is None:
+                prj_file_path = os.path.splitext(shapefile_path)[0] + ".prj"
+                if os.path.exists(prj_file_path):
+                    with open(prj_file_path, 'r') as prj_file:
+                        prj_text = prj_file.read().strip()
+                    crs = pyproj.CRS.from_string(prj_text)
+                    data.crs = crs
+
+            if data.crs != 'EPSG:4326':
+                data = data.to_crs('EPSG:4326')
+            
+            return data #, filename
+    
+    return None, None

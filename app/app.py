@@ -1,18 +1,20 @@
 import streamlit as st
 import pandas as pd
 import geopandas as gpd
+import numpy as np
 from shapely import wkt
 from streamlit_gsheets import GSheetsConnection
+import random
 import utils
 
-st.set_page_config(page_title="NDP Data Papers", layout="wide")
+st.set_page_config(page_title="ARVO dev app", layout="wide")
 
 st.header("A R V O dev",divider='green')
 st.markdown("Tutkimusappi alueviherkertoimen kehitykseen [ARVO](https://figbc.fi/arvo-viherrakenteen-arviointi-ja-vahvistaminen-kaupunkien-maankayton-suunnittelussa)-hankkeessa.")
 
 conn = st.connection("gsheets", type=GSheetsConnection)
 
-tab1,tab2,tab3 = st.tabs(["OSM data","HSY avoin data","Testisuunnitelmat"])
+tab1,tab2,tab3 = st.tabs(["OSM data","HSY avoin data","Suunnitelmatestit"])
 
 with tab1:
     gdf = None
@@ -42,15 +44,15 @@ with tab1:
             df_e = df_e.loc[df_e['area'] > 100]
             df_e['area'] = round(df_e['area'],-1)
             df_edit = df_e.groupby(by='type').sum()
-            df_edit['K'] = None
-            df_edit['X'] = 0.0
+            df_edit['K_selite'] = None
+            df_edit['x'] = 0.0
             
         with st.expander('Vihertaselaskelma'):
-            cols = ['area','K','X']
+            cols = ['area','K_selite','x']
             new_df = st.data_editor(df_edit[cols],use_container_width=True)
-            new_df['Kx'] = new_df['area']*new_df['X']
-            avk = round((new_df.loc[new_df['K'].notna()]['area'].sum() + new_df['Kx'].sum()) / new_df['area'].sum(),2)
-            kx_med = round(new_df['X'].median(),2)
+            new_df['Kx'] = new_df['area']*new_df['x']
+            avk = round((new_df.loc[new_df['K_selite'].notna()]['area'].sum() + new_df['Kx'].sum()) / new_df['area'].sum(),2)
+            kx_med = round(new_df['x'].median(),2)
             s1,s2 = st.columns(2)
             s1.metric('Aluevihertase',value=avk)
             latex_code = r"""
@@ -65,10 +67,13 @@ with tab2:
     add2 = st.text_input('Kohdeosoite',key='hsy')
     
     if add2:
-        gdf2 = utils.get_hsy_maanpeite(add=add2,radius=250)
+        try:
+            gdf2 = utils.get_hsy_maanpeite(add=add2,radius=250)
+        except:
+            st.warning('ei tuloksia')
         
     col2="kuvaus"
-    if gdf2 is not None:
+    if gdf2 is not None and len(gdf2) > 0:
         colors_hsy = {
             "Muu avoin matala kasvillisuus":"DarkKhaki",
             "puusto, 2 m - 10 m":"DarkSeaGreen",
@@ -84,63 +89,45 @@ with tab2:
             st.plotly_chart(fig_osm2, use_container_width=True, config = {'displayModeBar': False})
         with st.expander('hsy avoin data tasot'):
             utils.print_wfs_layers()
+    else:
+        st.warning('ei tuloksia')
 
 
 with tab3:
-    data = None
-    VE = st.radio("Valitse testisuunnitelman versio",['VE1','VE2'],horizontal=True)
-    if VE == 'VE1':
-        data = conn.read(worksheet="2027374130",ttl="30min")
-    elif VE == 'VE2':
-        data = conn.read(worksheet="1190105635",ttl="30min")
-    else:
-        st.stop()
-        element_list = [f"K{i}" for i in range(1, 30 + 1)]
-        elements = st.multiselect('Valitse testailtavat elementit',element_list,max_selections=5)
-        with st.form('Elementit'):
-            slider_values = {}
-            for e in sorted(elements):
-                slider_values[e] = st.slider(
-                    label=f"{e} Value", 
-                    min_value=0, 
-                    max_value=100, 
-                    value=50,
-                    key=e
-                    )
-            st.text(slider_values)
-            ana = st.form_submit_button('Analysoi')
-            
-    if data is not None:
+    gdf3 = None
+    uploaded_file = st.file_uploader("Lataa suunnitelma", type=['zip'], key='uploaded')
+    if uploaded_file:
         try:
-            name = f"Esimerkki {VE}"
-            df = st.data_editor(data, hide_index=True, height=200, disabled=("wkt"), use_container_width=True)
-            feats = df.drop(columns='wkt').columns.tolist()
-            col = st.selectbox('Visualisoi tieto',feats[1:-1])
-            if col != '..':
-                df['geometry'] = df.wkt.apply(wkt.loads)
-                gdf = gpd.GeoDataFrame(df,geometry='geometry',crs=4326)
-                df_edit = gdf.drop(columns="geometry")
-                df_edit = df_edit.loc[df_edit['area'] > 1000]
-                df_edit['area'] = round(df_edit['area'],-1)
-                if "K" not in df_edit.columns:
-                    df_edit['K'] = df_edit['element_type']
-                if "X" not in df_edit.columns:
-                    df_edit['X'] = df_edit['coef']
-        except:
-            st.warning("lähtötiedossa virhe")
-            st.stop()
+            gdf3 = utils.extract_shapefiles_from_zip(uploaded_file,'Polygon')
+            if 'area' not in gdf3.columns or gdf3['area'].isna().all():
+                utm = gdf3.estimate_utm_crs()
+                gdf3['area'] = round(gdf3.to_crs(utm).area,-1)
+            else:
+                pass
+                
+        except Exception as err_bu:
+            print(f"Buildings data error: {err_bu}")
+            st.warning('Tarkista data')
+            
+    if gdf3 is not None:
+        #if 'x' not in gdf.columns or gdf['x'].isna().all():
+        #    gdf['x'] = np.round(np.random.uniform(0, 1.5, size=len(gdf)), 1)
+            
+        if 'name' not in gdf3.columns or gdf3['name'].isna().all():
+            gdf3['name'] = "Lorem area.."
+        if 'K_selite' not in gdf3.columns or gdf3['K_selite'].isna().all():
+            gdf3['K_selite'] = "Ipsum biotoop.."
+            
+        cols = ['name','area','K_selite','x']
+        df = st.data_editor(gdf3[cols], hide_index=True, height=200, use_container_width=True)
+        df['Kx'] = df['area'] * df['x']
+        gdf3['Kx'] = df['Kx']
         
-        if gdf is not None:
-            with st.status('Kartta'):
-                fig_slu = utils.plot_landuse(gdf,name=name,col=col)
-                st.plotly_chart(fig_slu, use_container_width=True, config = {'displayModeBar': False})
-            with st.expander('Viherkerroinlaskelma'):
-                cols = ['area','K','X']
-                new_df = st.data_editor(df_edit[cols],use_container_width=True)
-                new_df['Kx'] = new_df['area']*new_df['X']
-                avk = round((new_df.loc[new_df['K'].notna()]['area'].sum() + new_df['Kx'].sum()) / new_df['area'].sum(),2)
-                kx_med = round(new_df['X'].median(),2)
-                st.metric('Hankeviherkerroin',value=avk)
+        col = "Kx"
+        fig_slu = utils.plot_landuse(gdf3,name='Testislu',hover_name='name',col=col, zoom=15)
+        st.plotly_chart(fig_slu, use_container_width=True, config = {'displayModeBar': False})
+        avk = round((df.loc[df['x'].notna()]['area'].sum() + df['Kx'].sum()) / df['area'].sum(),2)
+        st.metric('Hankeviherkerroin',value=avk)
             
 #footer
 st.markdown('---')
