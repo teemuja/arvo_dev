@@ -14,47 +14,82 @@ st.markdown("Tutkimusappi alueviherkertoimen kehitykseen [ARVO](https://figbc.fi
 
 conn = st.connection("gsheets", type=GSheetsConnection)
 
-tab1,tab2,tab3 = st.tabs(["OSM data","HSY avoin data","Suunnitelmatestit"])
+tab1,tab2 = st.tabs(["Nykytila-analyysi","Suunnitelma-analyysi"])
 
 with tab1:
     gdf = None
-    s1,s2 = st.columns([1,2])
+    s1,s2,s3 = st.columns([1,1,2])
     add = s1.text_input('Kohdeosoite')
-    tag = s2.radio('',['Maanpeite','Maankäyttö','Luontoalueet'],horizontal=True)
-    if tag == 'Maankäyttö':
-        tags = {'landuse':True}
-        name = f"Maankäyttö {add}"
-    elif tag == 'Luontoalueet':
-        tags = {'natural':True}
-        name = f"Luontoalueet {add}"
+    sorsa = s2.radio('Datalähde',['OSM','HSY'],horizontal=True)
+    if sorsa == 'OSM':
+        tag = s3.radio('Lähtötieto',['Maanpeite','Maankäyttö','Luontoalueet'],horizontal=True)
+        if tag == 'Maankäyttö':
+            tags = {'landuse':True}
+            name = f"Maankäyttö {add}"
+        elif tag == 'Luontoalueet':
+            tags = {'natural':True}
+            name = f"Luontoalueet {add}"
+        else:
+            tags = {'natural':True,'landuse':['grass','meadow','forest']}
+            name = f"Maanpeite {add}"
+        if add:
+            gdf = utils.get_osm_landuse(add=add,tags=tags,radius=250)
+            area_col = "area"
+            type_col="type"
+            df_for_edit = gdf.drop(columns='geometry')
+            #plots
+            bar_osm = utils.plot_area_bars(gdf)
+            st.plotly_chart(bar_osm, use_container_width=True, config = {'displayModeBar': False})
+            map_osm = utils.plot_landuse(gdf,name=name,col=type_col,zoom=15)
+            st.plotly_chart(map_osm, use_container_width=True, config = {'displayModeBar': False})
     else:
-        tags = {'natural':True,'landuse':['grass','meadow','forest']}
-        name = f"Maanpeite {add}"
-    if add:
-        gdf = utils.get_osm_landuse(add=add,tags=tags,radius=500)
-        col="type"
-        fig_bar = utils.plot_area_bars(gdf)
-        st.plotly_chart(fig_bar, use_container_width=True, config = {'displayModeBar': False})
-        
+        with st.expander('hsy avoin data tasot'):
+            utils.print_wfs_layers()
+        if add:
+            gdf = utils.get_hsy_maanpeite(add=add,radius=250)
+            area_col = "p_ala_m2"
+            type_col = "kuvaus"
+            df_for_edit = gdf.drop(columns='geometry')
+
+        if gdf is not None and len(gdf) > 0:
+            name = f"Maanpeite {add}"
+            colors_hsy = {
+                "Muu avoin matala kasvillisuus":"DarkKhaki",
+                "puusto, 2 m - 10 m":"DarkSeaGreen",
+                "puusto, 10 m - 15 m":"OliveDrab",
+                "puusto, 15 m - 20 m":"DarkOliveGreen",
+                "Puusto yli 20 m":"DarkGreen"
+                }
+            bar_hsy = utils.plot_area_bars(gdf,x='p_ala_m2',y='kuvaus',color='kuvaus',color_map=colors_hsy)
+            st.plotly_chart(bar_hsy, use_container_width=True, config = {'displayModeBar': False})
+            map_hsy = utils.plot_landuse(gdf,name=name,col=type_col,color_map=colors_hsy,zoom=15)
+            st.plotly_chart(map_hsy, use_container_width=True, config = {'displayModeBar': False})
+
     if gdf is not None:
-        with st.status('Kartta'):
-            fig_osm = utils.plot_landuse(gdf,name=name,col=col)
-            st.plotly_chart(fig_osm, use_container_width=True, config = {'displayModeBar': False})
-            df_e = gdf.drop(columns="geometry")
-            df_e = df_e.loc[df_e['area'] > 100]
-            df_e['area'] = round(df_e['area'],-1)
-            df_edit = df_e.groupby(by='type').sum()
-            df_edit['K_selite'] = None
-            df_edit['x'] = 0.0
             
-        with st.expander('Vihertaselaskelma'):
-            cols = ['area','K_selite','x']
-            new_df = st.data_editor(df_edit[cols],use_container_width=True)
-            new_df['Kx'] = new_df['area']*new_df['x']
-            avk = round((new_df.loc[new_df['K_selite'].notna()]['area'].sum() + new_df['Kx'].sum()) / new_df['area'].sum(),2)
-            kx_med = round(new_df['x'].median(),2)
+        with st.expander('Laskelma'):
+            grouped_df = df_for_edit.groupby(by=type_col, group_keys=True).sum().reset_index()
+            grouped_df[area_col] = round(grouped_df[area_col],-1)
+            grouped_df['Kx'] = grouped_df.apply(lambda row: round(random.uniform(0.5, 3.5),1), axis=1)
+
+            grouped_df['Selite'] = "..."
+            
+            edited_df = st.data_editor(
+                            grouped_df,
+                            hide_index=True,
+                            #column_config={"Select": st.column_config.CheckboxColumn(required=True)},
+                            #disabled=df_for_edit.columns,
+                            use_container_width=True
+                        )
+            #calc
+            eAla = edited_df[area_col].sum()
+            edited_df['kxAla'] = edited_df[area_col] * edited_df['Kx']
+            kxAla = edited_df['kxAla'].sum()
+            tot_ala = (3.14 * 500 * 500) #hakualue
+            arvo = round((eAla + kxAla)/tot_ala,2)
+            #results
             s1,s2 = st.columns(2)
-            s1.metric('Aluevihertase',value=avk)
+            s1.metric('ARVO',value=arvo)
             latex_code = r"""
                         $$
                         \frac{\sum eAla + \sum eAla*Kx}{\sum totAla}
@@ -62,38 +97,8 @@ with tab1:
                         """
             s2.markdown(latex_code,unsafe_allow_html=True)
 
+
 with tab2:
-    gdf2 = None
-    add2 = st.text_input('Kohdeosoite',key='hsy')
-    
-    if add2:
-        try:
-            gdf2 = utils.get_hsy_maanpeite(add=add2,radius=250)
-        except:
-            st.warning('ei tuloksia')
-        
-    col2="kuvaus"
-    if gdf2 is not None and len(gdf2) > 0:
-        colors_hsy = {
-            "Muu avoin matala kasvillisuus":"DarkKhaki",
-            "puusto, 2 m - 10 m":"DarkSeaGreen",
-            "puusto, 10 m - 15 m":"OliveDrab",
-            "puusto, 15 m - 20 m":"DarkOliveGreen",
-            "Puusto yli 20 m":"DarkGreen"
-            }
-        fig_bar2 = utils.plot_area_bars(gdf2,x='p_ala_m2',y='kuvaus',color='kuvaus',color_map=colors_hsy)
-        st.plotly_chart(fig_bar2, use_container_width=True, config = {'displayModeBar': False})
-        
-        with st.status("Alueet karttalla"):
-            fig_osm2 = utils.plot_landuse(gdf2,name=name,col=col2,color_map=colors_hsy,zoom=16)
-            st.plotly_chart(fig_osm2, use_container_width=True, config = {'displayModeBar': False})
-        with st.expander('hsy avoin data tasot'):
-            utils.print_wfs_layers()
-    else:
-        st.warning('ei tuloksia')
-
-
-with tab3:
     gdf3 = None
     uploaded_file = st.file_uploader("Lataa suunnitelma", type=['zip'], key='uploaded')
     if uploaded_file:

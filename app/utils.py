@@ -71,8 +71,6 @@ def print_wfs_layers(url = 'https://kartta.hsy.fi/geoserver/wfs'):
 
 def get_hsy_test(add,layer='asuminen_ja_maankaytto:maanpeite_puusto_2_10m_2022', radius=500):
     loc = geocoder.mapbox(add, key=mbtoken)
-    lng = loc.lng 
-    lat = loc.lat
     transformer = Transformer.from_crs("EPSG:4326", "EPSG:3879", always_xy=True)
     lng_3879, lat_3879 = transformer.transform(loc.lng, loc.lat)
 
@@ -99,8 +97,8 @@ def get_hsy_test(add,layer='asuminen_ja_maankaytto:maanpeite_puusto_2_10m_2022',
         print(response.text)
         return None
         
-def get_hsy_maanpeite(add, radius=500):
-    loc = geocoder.osm(add) #, key=mbtoken)
+def get_hsy_maanpeite(add, radius=250):
+    loc = geocoder.mapbox(add, key=mbtoken)
     transformer = Transformer.from_crs("EPSG:4326", "EPSG:3879", always_xy=True)
     lng_3879, lat_3879 = transformer.transform(loc.lng, loc.lat)
     
@@ -147,7 +145,7 @@ def get_hsy_maanpeite(add, radius=500):
         result = gpd.GeoDataFrame(pd.concat(layers, ignore_index=True),geometry='geometry',crs=3879)
         return result.to_crs(4326)
         
-def get_osm_landuse(add,radius,tags = {'natural':True,'landuse':True},exclude=['bay'],removeoverlaps=False):
+def get_osm_landuse(add,radius=250,tags = {'natural':True,'landuse':True},exclude=['bay'],removeoverlaps=False):
     data = ox.features_from_address(add,dist=radius,tags=tags).reset_index()
     gdf = data.loc[data['geometry'].geom_type.isin(['Polygon', 'MultiPolygon'])]
     if tags == {'landuse':True}:
@@ -187,7 +185,15 @@ def get_osm_landuse(add,radius,tags = {'natural':True,'landuse':True},exclude=['
     return result_gdf
 
 def plot_landuse(gdf,name,hover_name=None,col='type',color_map=None,zoom=14):
-    
+
+    #scale cirle
+    lat = gdf.unary_union.centroid.y
+    lng = gdf.unary_union.centroid.x
+    center_gdf = gpd.GeoDataFrame(geometry=[Point(lng, lat)], crs="EPSG:4326")
+    center_gdf = center_gdf.to_crs("EPSG:3067")
+    circle = center_gdf.iloc[0].geometry.buffer(250)
+    ring = gpd.GeoDataFrame(geometry=[circle], crs="EPSG:3067").to_crs("EPSG:4326")
+
     if color_map is None:
         unique_categories = gdf[col].unique()
         colors = px.colors.qualitative.Set2
@@ -213,6 +219,19 @@ def plot_landuse(gdf,name,hover_name=None,col='type',color_map=None,zoom=14):
                             width=1200,
                             height=700
                             )
+    if ring is not None:
+        fig_map.update_layout(
+            mapbox={
+                "layers": [
+                    {
+                        "source": json.loads(ring.to_crs(4326).to_json()),
+                        "type": "line",
+                        "color": "black",
+                        "line": {"width": 0.5, "dash": [5, 5]},
+                    }
+                ]
+            }
+        )
 
     fig_map.update_layout(margin={"r": 10, "t": 50, "l": 10, "b": 10}, height=700,
                                 legend=dict(
@@ -224,7 +243,7 @@ def plot_landuse(gdf,name,hover_name=None,col='type',color_map=None,zoom=14):
                                 )
     return fig_map
 
-def plot_area_bars(gdf,x='area',y='type',color='type',color_map=None):
+def plot_area_bars(gdf,x='area',y='type',color='type',color_map=None,title='Elinympäristötyypit datassa'):
     
     if color_map is None:
         unique_categories = gdf[color].unique()
@@ -232,7 +251,7 @@ def plot_area_bars(gdf,x='area',y='type',color='type',color_map=None):
         color_map = {category: colors[i % len(colors)] for i, category in enumerate(unique_categories)}
     
     cat_order = list(color_map.keys())
-    fig = px.bar(gdf,x,y,color,color_discrete_map=color_map,category_orders={color:cat_order})
+    fig = px.bar(gdf,x,y,color,color_discrete_map=color_map,category_orders={color:cat_order},title=title)
     #fig.update_xaxes(range=[0,gdf[x].quantile(0.99)])
     return fig
 
