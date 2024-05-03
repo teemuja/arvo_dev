@@ -33,20 +33,24 @@ with tab1:
             tags = {'natural':True,'landuse':['grass','meadow','forest']}
             name = f"Maanpeite {add}"
         if add:
-            gdf = utils.get_osm_landuse(add=add,tags=tags,radius=500)
-            col="type"
+            gdf = utils.get_osm_landuse(add=add,tags=tags,radius=250)
+            area_col = "area"
+            type_col="type"
+            df_for_edit = gdf.drop(columns='geometry')
+            #plots
             bar_osm = utils.plot_area_bars(gdf)
             st.plotly_chart(bar_osm, use_container_width=True, config = {'displayModeBar': False})
-            map_osm = utils.plot_landuse(gdf,name=name,col=col)
+            map_osm = utils.plot_landuse(gdf,name=name,col=type_col,zoom=15)
             st.plotly_chart(map_osm, use_container_width=True, config = {'displayModeBar': False})
     else:
+        with st.expander('hsy avoin data tasot'):
+            utils.print_wfs_layers()
         if add:
-            try:
-                gdf = utils.get_hsy_maanpeite(add=add,radius=250)
-            except:
-                st.warning('Ei tuloksia sijainnissa')
-            
-        col2="kuvaus"
+            gdf = utils.get_hsy_maanpeite(add=add,radius=250)
+            area_col = "p_ala_m2"
+            type_col = "kuvaus"
+            df_for_edit = gdf.drop(columns='geometry')
+
         if gdf is not None and len(gdf) > 0:
             name = f"Maanpeite {add}"
             colors_hsy = {
@@ -58,17 +62,34 @@ with tab1:
                 }
             bar_hsy = utils.plot_area_bars(gdf,x='p_ala_m2',y='kuvaus',color='kuvaus',color_map=colors_hsy)
             st.plotly_chart(bar_hsy, use_container_width=True, config = {'displayModeBar': False})
-            map_hsy = utils.plot_landuse(gdf,name=name,col=col2,color_map=colors_hsy,zoom=16)
+            map_hsy = utils.plot_landuse(gdf,name=name,col=type_col,color_map=colors_hsy,zoom=15)
             st.plotly_chart(map_hsy, use_container_width=True, config = {'displayModeBar': False})
-            with st.expander('hsy avoin data tasot'):
-                utils.print_wfs_layers()
 
     if gdf is not None:
             
-        with st.expander('Vihertase'):
+        with st.expander('Laskelma'):
+            grouped_df = df_for_edit.groupby(by=type_col, group_keys=True).sum().reset_index()
+            grouped_df[area_col] = round(grouped_df[area_col],-1)
+            grouped_df['Kx'] = grouped_df.apply(lambda row: round(random.uniform(0.5, 3.5),1), axis=1)
+
+            grouped_df['Selite'] = "..."
             
+            edited_df = st.data_editor(
+                            grouped_df,
+                            hide_index=True,
+                            #column_config={"Select": st.column_config.CheckboxColumn(required=True)},
+                            #disabled=df_for_edit.columns,
+                            use_container_width=True
+                        )
+            #calc
+            eAla = edited_df[area_col].sum()
+            edited_df['kxAla'] = edited_df[area_col] * edited_df['Kx']
+            kxAla = edited_df['kxAla'].sum()
+            tot_ala = (3.14 * 500 * 500) #hakualue
+            arvo = round((eAla + kxAla)/tot_ala,2)
+            #results
             s1,s2 = st.columns(2)
-            s1.metric('Aluevihertase',value=0.8)
+            s1.metric('ARVO',value=arvo)
             latex_code = r"""
                         $$
                         \frac{\sum eAla + \sum eAla*Kx}{\sum totAla}
