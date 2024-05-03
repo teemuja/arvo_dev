@@ -42,6 +42,17 @@ def check_password():
     else:
         return True
 
+def getlatlon(add):
+    loc = geocoder.mapbox(add, key=mbtoken)
+    if loc.ok and loc.country == 'Finland':
+        lon = loc.lng
+        lat = loc.lat
+        latlon = (lat,lon)
+        return latlon
+    else:
+        st.warning('Anna tarkempi osoite Suomessa')
+        st.stop()
+
 
 import xml.etree.ElementTree as ET
 def print_wfs_layers(url = 'https://kartta.hsy.fi/geoserver/wfs'):
@@ -69,38 +80,11 @@ def print_wfs_layers(url = 'https://kartta.hsy.fi/geoserver/wfs'):
     else:
         print(f"Failed to get capabilities from WFS service, status code: {response.status_code}")
 
-def get_hsy_test(add,layer='asuminen_ja_maankaytto:maanpeite_puusto_2_10m_2022', radius=500):
-    loc = geocoder.mapbox(add, key=mbtoken)
-    transformer = Transformer.from_crs("EPSG:4326", "EPSG:3879", always_xy=True)
-    lng_3879, lat_3879 = transformer.transform(loc.lng, loc.lat)
-
-    cql_filter = f"INTERSECTS(geom, BUFFER(POINT({lat_3879} {lng_3879}), {radius}))"
-    url = 'https://kartta.hsy.fi/geoserver/wfs'
-    params = {
-        'service': 'WFS',
-        'version': '2.0',
-        'request': 'GetFeature',
-        'typeName': layer,
-        'outputFormat': "json",
-        'srsName': 'EPSG:3879', # for FIN ETRS89 GK25FIN
-        'CQL_FILTER': cql_filter
-    }
-    response = requests.get(url, params=params, verify=False)
-    if response.status_code == 200:
-        geojson = response.json()  # Get the response as a JSON object
-        if geojson['features']:  # Check if there are any features
-            return gpd.GeoDataFrame.from_features(geojson)
-        else:
-            print("No features found.")
-            return gpd.GeoDataFrame([], columns=['geometry'])
-    else:
-        print(response.text)
-        return None
         
-def get_hsy_maanpeite(add, radius=250):
-    loc = geocoder.mapbox(add, key=mbtoken)
+def get_hsy_maanpeite(latlon, radius=250):
+    
     transformer = Transformer.from_crs("EPSG:4326", "EPSG:3879", always_xy=True)
-    lng_3879, lat_3879 = transformer.transform(loc.lng, loc.lat)
+    lng_3879, lat_3879 = transformer.transform(latlon[1], latlon[0])
     
     layer_names = ['asuminen_ja_maankaytto:maanpeite_puusto_2_10m_2022',
                    'asuminen_ja_maankaytto:maanpeite_puusto_10_15m_2022',
@@ -145,8 +129,8 @@ def get_hsy_maanpeite(add, radius=250):
         result = gpd.GeoDataFrame(pd.concat(layers, ignore_index=True),geometry='geometry',crs=3879)
         return result.to_crs(4326)
         
-def get_osm_landuse(add,radius=250,tags = {'natural':True,'landuse':True},exclude=['bay'],removeoverlaps=False):
-    data = ox.features_from_address(add,dist=radius,tags=tags).reset_index()
+def get_osm_landuse(latlon,radius=250,tags = {'natural':True,'landuse':True},exclude=['bay'],removeoverlaps=False):
+    data = ox.features_from_point(center_point=latlon,dist=radius,tags=tags).reset_index()
     gdf = data.loc[data['geometry'].geom_type.isin(['Polygon', 'MultiPolygon'])]
     if tags == {'landuse':True}:
         gdf['type'] = gdf.apply(lambda row: row['landuse'], axis=1)
@@ -156,8 +140,7 @@ def get_osm_landuse(add,radius=250,tags = {'natural':True,'landuse':True},exclud
         gdf['type'] = gdf.apply(lambda row: row['landuse'] if pd.notna(row['landuse']) else row['natural'], axis=1)
     
     #clip & filter
-    loc = ox.geocode(add)
-    center_gdf = gpd.GeoDataFrame(geometry=[Point(loc[1],loc[0])], crs="EPSG:4326")
+    center_gdf = gpd.GeoDataFrame(geometry=[Point(latlon[1],latlon[0])], crs="EPSG:4326")
     utm = center_gdf.estimate_utm_crs()
     gdf_utm = gdf[~gdf['type'].isin(exclude)].to_crs(utm)
     buffer = center_gdf.to_crs(utm).buffer(radius)
@@ -190,9 +173,9 @@ def plot_landuse(gdf,name,hover_name=None,col='type',color_map=None,zoom=14):
     lat = gdf.unary_union.centroid.y
     lng = gdf.unary_union.centroid.x
     center_gdf = gpd.GeoDataFrame(geometry=[Point(lng, lat)], crs="EPSG:4326")
-    center_gdf = center_gdf.to_crs("EPSG:3067")
+    center_gdf = center_gdf.to_crs("EPSG:3879")
     circle = center_gdf.iloc[0].geometry.buffer(250)
-    ring = gpd.GeoDataFrame(geometry=[circle], crs="EPSG:3067").to_crs("EPSG:4326")
+    ring = gpd.GeoDataFrame(geometry=[circle], crs="EPSG:3879").to_crs("EPSG:4326")
 
     if color_map is None:
         unique_categories = gdf[col].unique()

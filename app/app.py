@@ -21,6 +21,8 @@ with tab1:
     s1,s2,s3 = st.columns([1,1,2])
     add = s1.text_input('Kohdeosoite')
     sorsa = s2.radio('Datalähde',['OSM','HSY'],horizontal=True)
+    latlon = utils.getlatlon(add)
+    
     if sorsa == 'OSM':
         tag = s3.radio('Lähtötieto',['Maanpeite','Maankäyttö','Luontoalueet'],horizontal=True)
         if tag == 'Maankäyttö':
@@ -33,23 +35,32 @@ with tab1:
             tags = {'natural':True,'landuse':['grass','meadow','forest']}
             name = f"Maanpeite {add}"
         if add:
-            gdf = utils.get_osm_landuse(add=add,tags=tags,radius=250)
-            area_col = "area"
-            type_col="type"
-            df_for_edit = gdf.drop(columns='geometry')
-            #plots
-            bar_osm = utils.plot_area_bars(gdf)
-            st.plotly_chart(bar_osm, use_container_width=True, config = {'displayModeBar': False})
-            map_osm = utils.plot_landuse(gdf,name=name,col=type_col,zoom=15)
-            st.plotly_chart(map_osm, use_container_width=True, config = {'displayModeBar': False})
+            try:
+                gdf = utils.get_osm_landuse(latlon=latlon,tags=tags,radius=250)
+                area_col = "area"
+                type_col="type"
+                df_for_edit = gdf.drop(columns='geometry')
+                #plots
+                bar_osm = utils.plot_area_bars(gdf)
+                st.plotly_chart(bar_osm, use_container_width=True, config = {'displayModeBar': False})
+                map_osm = utils.plot_landuse(gdf,name=name,col=type_col,zoom=15)
+                st.plotly_chart(map_osm, use_container_width=True, config = {'displayModeBar': False})
+            except TimeoutError:
+                st.warning('Ei yhteyttä dataan')
+                st.stop()
+
     else:
         with st.expander('hsy avoin data tasot'):
             utils.print_wfs_layers()
         if add:
-            gdf = utils.get_hsy_maanpeite(add=add,radius=250)
-            area_col = "p_ala_m2"
-            type_col = "kuvaus"
-            df_for_edit = gdf.drop(columns='geometry')
+            try:
+                gdf = utils.get_hsy_maanpeite(latlon=latlon,radius=250)
+                area_col = "p_ala_m2"
+                type_col = "kuvaus"
+                df_for_edit = gdf.drop(columns='geometry')
+            except TimeoutError:
+                st.warning('Ei yhteyttä dataan')
+                st.stop()
 
         if gdf is not None and len(gdf) > 0:
             name = f"Maanpeite {add}"
@@ -64,6 +75,9 @@ with tab1:
             st.plotly_chart(bar_hsy, use_container_width=True, config = {'displayModeBar': False})
             map_hsy = utils.plot_landuse(gdf,name=name,col=type_col,color_map=colors_hsy,zoom=15)
             st.plotly_chart(map_hsy, use_container_width=True, config = {'displayModeBar': False})
+        else:
+            st.warning('Ei dataa osoitteessa')
+            st.stop()
 
     if gdf is not None:
             
