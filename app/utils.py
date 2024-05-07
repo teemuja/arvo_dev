@@ -48,10 +48,9 @@ def getlatlon(add):
         lon = loc.lng
         lat = loc.lat
         latlon = (lat,lon)
-        return latlon
+        return latlon,loc
     else:
-        st.warning('Anna tarkempi osoite Suomessa')
-        st.stop()
+        return None
 
 
 import xml.etree.ElementTree as ET
@@ -237,6 +236,7 @@ def plot_area_bars(gdf,x='area',y='type',color='type',color_map=None,title='Elin
     fig = px.bar(gdf,x,y,color,color_discrete_map=color_map,category_orders={color:cat_order},title=title)
     #fig.update_xaxes(range=[0,gdf[x].quantile(0.99)])
     return fig
+
 
 def extract_shapefiles_from_zip(file, geom_type):
     with tempfile.TemporaryDirectory() as tmp_dir:
