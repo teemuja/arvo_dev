@@ -126,17 +126,27 @@ def get_hsy_maanpeite(latlon, radius=250):
             return st.warning('Ei tuloksia.')
     if layers:
         result = gpd.GeoDataFrame(pd.concat(layers, ignore_index=True),geometry='geometry',crs=3879)
+        result["p_ala_m2"] = round(result["p_ala_m2"],0)
         return result.to_crs(4326)
         
 def get_osm_landuse(latlon,radius=250,tags = {'natural':True,'landuse':True},exclude=['bay'],removeoverlaps=False):
     data = ox.features_from_point(center_point=latlon,dist=radius,tags=tags).reset_index()
     gdf = data.loc[data['geometry'].geom_type.isin(['Polygon', 'MultiPolygon'])]
+    
     if tags == {'landuse':True}:
         gdf['type'] = gdf.apply(lambda row: row['landuse'], axis=1)
     elif tags == {'natural':True}:
         gdf['type'] = gdf.apply(lambda row: row['natural'], axis=1)
     else:
-        gdf['type'] = gdf.apply(lambda row: row['landuse'] if pd.notna(row['landuse']) else row['natural'], axis=1)
+        def determine_type(row):
+            if 'landuse' in row and pd.notna(row['landuse']):
+                return row['landuse']
+            elif 'natural' in row and pd.notna(row['natural']):
+                return row['natural']
+            else:
+                return 'Unknown'
+        gdf['type'] = gdf.apply(determine_type, axis=1)
+        #gdf['type'] = gdf.apply(lambda row: row['landuse'] if pd.notna(row['landuse']) else row['natural'], axis=1)
     
     #clip & filter
     center_gdf = gpd.GeoDataFrame(geometry=[Point(latlon[1],latlon[0])], crs="EPSG:4326")
@@ -159,14 +169,17 @@ def get_osm_landuse(latlon,radius=250,tags = {'natural':True,'landuse':True},exc
         filtered_gdf = filtered_gdf.drop(to_remove)
         #recalc area
         filtered_gdf['area'] = filtered_gdf.area
-        
+    
+    #round area
+    filtered_gdf['area'] = round(filtered_gdf['area'],0)
+    
     #cols
     columns = ['name', 'type', 'area', 'geometry']
     existing_columns = [col for col in columns if col in filtered_gdf.columns]
     result_gdf = filtered_gdf.to_crs(4326)[existing_columns]
     return result_gdf
 
-def plot_landuse(gdf,name,hover_name=None,col='type',color_map=None,zoom=14):
+def plot_landuse(gdf,title,hover_name=None,col='type',color_map=None,zoom=14):
 
     #scale cirle
     lat = gdf.unary_union.centroid.y
@@ -189,7 +202,7 @@ def plot_landuse(gdf,name,hover_name=None,col='type',color_map=None,zoom=14):
     fig_map = px.choropleth_mapbox(gdf,
                             geojson=gdf.geometry,
                             locations=gdf.index,
-                            title=name,
+                            title=title,
                             color=col,
                             hover_name=hover_name,
                             color_discrete_map=color_map,
