@@ -115,6 +115,7 @@ with tab1:
             conn = st.connection("gsheets", type=GSheetsConnection)
             try:
                 df_cls = conn.read()
+                df_cls.columns = df_cls.columns.str.lower()
                 elist = df_cls[df_cls.columns[0]].tolist()
             except Exception as e:
                 st.error(f"Ei yhteyttä luokittelutiedostoon: {e}")
@@ -193,7 +194,7 @@ with tab1:
                             for e in ecols:
                                 if e not in grouped_df.columns:
                                     grouped_df[e] = pd.NA  # Initialize the column if it doesn't exist
-                                kx = df_cls.loc[df_cls['ELINYMPÄRISTÖ'] == selected, e]
+                                kx = df_cls.loc[df_cls[df_cls.columns[0]] == selected, e]
                                 if not kx.empty:
                                     kx_value = kx.iloc[0]
                                     grouped_df.at[ind, e] = kx_value
@@ -232,7 +233,7 @@ with tab1:
                         selected = selections.get(index)
                         if selected:
                             for e in ecols:
-                                kx = df_cls.loc[df_cls['ELINYMPÄRISTÖ'] == selected, e]
+                                kx = df_cls.loc[df_cls[df_cls.columns[0]] == selected, e]
                                 if not kx.empty:
                                     kx_value = kx.iloc[0]
                                     not_grouped_df.at[index, e] = kx_value
@@ -304,7 +305,7 @@ with tab1:
                     edited_gdf.drop('original_index', axis=1, inplace=True)
                     edited_gdf = gpd.GeoDataFrame(edited_gdf)
                     
-                    keep_cols = ['name', type_col, area_col, 'LUMO', 'LUMO_sel', 'MELU', 'MELU_sel', 'HULE', 'HULE_sel', 'ILMA', 'ILMA_sel', 'PÖLY', 'PÖLY_sel', 'TERV', 'TERV_sel', 'kxAla','geometry']
+                    keep_cols = ['name', type_col, area_col,'kxAla','geometry'] + ecols
                     color_col = 'kxAla'
                     edited_on_map = utils.plot_landuse(edited_gdf[keep_cols],title=None,hover_name=type_col,col=color_col,zoom=15)
                     st.plotly_chart(edited_on_map, use_container_width=True, config = {'displayModeBar': False})
