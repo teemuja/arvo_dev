@@ -50,10 +50,10 @@ with tab1:
                 try:
                     gdf = utils.get_osm_landuse(latlon=latlon,tags=tags,radius=r)
                     if gdf is not None and not gdf.empty:
-                        area_col = "area"
-                        type_col="type"
+                        area_col = "pinta-ala"
+                        type_col="luokka"
                         #plots
-                        bar_osm = utils.plot_area_bars(gdf)
+                        bar_osm = utils.plot_area_bars(gdf,x=area_col,y=type_col,color=type_col,color_map=None,title='Elinympäristötyypit datassa')
                         st.plotly_chart(bar_osm, use_container_width=True, config = {'displayModeBar': False})
                         map_osm = utils.plot_landuse(gdf,title=name,col=type_col,zoom=15)
                         st.plotly_chart(map_osm, use_container_width=True, config = {'displayModeBar': False})
@@ -244,6 +244,7 @@ with tab1:
             with s2.container(height=300):
                 st.markdown('**Pisteytys**')
                 use_cols = ['index','name'] + [type_col] + [area_col] + ecols
+
                 edited_df = st.data_editor(
                                 df_for_cls[use_cols],
                                 hide_index=True,
