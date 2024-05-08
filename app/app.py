@@ -50,6 +50,7 @@ with tab1:
                 try:
                     gdf = utils.get_osm_landuse(latlon=latlon,tags=tags,radius=r)
                     if gdf is not None and not gdf.empty:
+                        name_col = "nimi"
                         area_col = "pinta-ala"
                         type_col="luokka"
                         #plots
@@ -71,6 +72,7 @@ with tab1:
                 try:
                     gdf = utils.get_hsy_maanpeite(latlon=latlon,radius=r)
                     if gdf is not None and len(gdf) > 0:
+                        name_col = "nimi"
                         area_col = "p_ala_m2"
                         type_col = "kuvaus"
                         title = f"Maanpeite {add}"
@@ -166,7 +168,7 @@ with tab1:
                     
                     random_names = ['Puistikot','Pellot','Perhosniityt','Taskupuistot','Hiilinielumetsät']
                     for ind, row in grouped_df.iterrows():
-                        grouped_df.at[ind, 'name'] = random.choice(random_names)
+                        grouped_df.at[ind, name_col] = random.choice(random_names)
                         
                     selections = {}
                     for type_area in grouped_df[type_col].unique():
@@ -206,10 +208,10 @@ with tab1:
                     not_grouped_df = df_for_edit.copy()
                     selections = {}
                     index_values = not_grouped_df.index
-                    if 'name' not in not_grouped_df.columns:
+                    if name_col not in not_grouped_df.columns:
                         random_names = ['Puutiaisen puistikko','Heinänuhapelto','Perhosniitty','Hiilinielumetsä']
                         for ind, row in not_grouped_df.iterrows():
-                            not_grouped_df.at[ind, 'name'] = random.choice(random_names)
+                            not_grouped_df.at[ind, name_col] = random.choice(random_names)
                     not_grouped_df.insert(0, 'index', index_values)
                     
                     for index, type_area in not_grouped_df[type_col].iteritems():
@@ -243,8 +245,9 @@ with tab1:
                             
             with s2.container(height=300):
                 st.markdown('**Pisteytys**')
-                use_cols = ['index','name'] + [type_col] + [area_col] + ecols
+                use_cols = ['index',name_col] + [type_col] + [area_col] + ecols
 
+                # USE PARTIAL RERUN HERE TO UPDATE MAP!
                 edited_df = st.data_editor(
                                 df_for_cls[use_cols],
                                 hide_index=True,
@@ -306,7 +309,7 @@ with tab1:
                     edited_gdf.drop('original_index', axis=1, inplace=True)
                     edited_gdf = gpd.GeoDataFrame(edited_gdf)
                     
-                    keep_cols = ['name', type_col, area_col,'kxAla','geometry'] + ecols
+                    keep_cols = [name_col, type_col, area_col,'kxAla','geometry'] + ecols
                     color_col = 'kxAla'
                     edited_on_map = utils.plot_landuse(edited_gdf[keep_cols],title=None,hover_name=type_col,col=color_col,zoom=15)
                     st.plotly_chart(edited_on_map, use_container_width=True, config = {'displayModeBar': False})
