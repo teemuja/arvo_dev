@@ -113,7 +113,13 @@ with tab1:
             
             #luokitukset
             conn = st.connection("gsheets", type=GSheetsConnection)
-            df_cls = conn.read()
+            try:
+                df_cls = conn.read()
+                elist = df_cls[df_cls.columns[0]].tolist()
+            except Exception as e:
+                st.error(f"Ei yhteyttä luokittelutiedostoon: {e}")
+                st.stop()
+                
             ecols = df_cls.columns.tolist()[1:] #remove first col = 'ELINYMPÄRISTÖ'
             num_columns = [col for col in ecols if 'sel' not in col] + [area_col]
             str_columns = [col for col in ecols if 'sel' in col] + [type_col]
@@ -130,7 +136,6 @@ with tab1:
             
             with s1.container(height=300):
                 st.markdown('**Luokittelu**')
-                elist = df_cls['ELINYMPÄRISTÖ'].tolist()
                 
                 #dict for default values
                 osm_dict = {
@@ -201,7 +206,7 @@ with tab1:
                     selections = {}
                     index_values = not_grouped_df.index
                     if 'name' not in not_grouped_df.columns:
-                        random_names = ['Puutiaisen puistikko','Heinänuhapelto','Perhosniitty','Pussikaljapuisto','Hiilinielumetsä']
+                        random_names = ['Puutiaisen puistikko','Heinänuhapelto','Perhosniitty','Hiilinielumetsä']
                         for ind, row in not_grouped_df.iterrows():
                             not_grouped_df.at[ind, 'name'] = random.choice(random_names)
                     not_grouped_df.insert(0, 'index', index_values)
