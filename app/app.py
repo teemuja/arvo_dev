@@ -119,7 +119,7 @@ with tab1:
                 df_cls = conn.read()
                 df_cls.columns = df_cls.columns.str.lower()
                 #elinymp_col = 'elinympäristöt'
-                elist = df_cls[df_cls[df_cls.columns[0]]].tolist()
+                elist = df_cls[df_cls.columns[0]].tolist()
             except Exception as e:
                 st.error(f"Ei yhteyttä luokittelutiedostoon: {e}")
                 st.stop()
