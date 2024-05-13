@@ -249,14 +249,18 @@ with tab1:
                 use_cols = ['index',name_col] + [type_col] + [area_col] + ecols
 
                 # USE PARTIAL RERUN HERE TO UPDATE MAP!
-                edited_df = st.data_editor(
-                                df_for_cls[use_cols],
-                                hide_index=True,
-                                #height=300,
-                                #column_config={"Select": st.column_config.CheckboxColumn(required=True)},
-                                #disabled=df_for_edit.columns,
-                                use_container_width=True
-                            )
+                try:
+                    edited_df = st.data_editor(
+                                    df_for_cls[use_cols],
+                                    hide_index=True,
+                                    #height=300,
+                                    #column_config={"Select": st.column_config.CheckboxColumn(required=True)},
+                                    #disabled=df_for_edit.columns,
+                                    use_container_width=True
+                                )
+                except:
+                    st.warning('Ei dataa')
+                    st.stop()
             
             #prepare for calc
             for col in num_columns:
