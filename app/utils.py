@@ -205,6 +205,7 @@ def plot_landuse(gdf,title,hover_name=None,col='type',color_map=None,zoom=14):
                             title=title,
                             color=col,
                             hover_name=hover_name,
+                            color_continuous_scale="Greens",
                             color_discrete_map=color_map,
                             category_orders={col:cat_order},
                             center={"lat": lat, "lon": lon},
@@ -236,6 +237,13 @@ def plot_landuse(gdf,title,hover_name=None,col='type',color_map=None,zoom=14):
                                     x=0.02
                                 )
                                 )
+    fig_map.update_layout(
+                            coloraxis_colorbar=dict(
+                                title='Arvo',
+                                tickvals=[gdf[col].min(),gdf[col].max()],
+                                ticktext=['matala','korkea']
+                            )
+                        )
     return fig_map
 
 def plot_area_bars(gdf,x='area',y='type',color='type',color_map=None,title='Elinympäristötyypit datassa'):

@@ -36,7 +36,7 @@ with tab1:
     
     with st.expander('Elinympäristöt datassa',expanded=True):
         if sorsa == 'OSM':
-            tag = s3.radio('Lähtötieto',['Maanpeite','Maankäyttö','Luontoalueet'],horizontal=True)
+            tag = 'Maanpeite' #s3.radio('Lähtötieto',['Maanpeite','Maankäyttö','Luontoalueet'],horizontal=True)
             if tag == 'Maankäyttö':
                 tags = {'landuse':True}
                 name = f"Maankäyttö {add}"
@@ -122,7 +122,8 @@ with tab1:
             except Exception as e:
                 st.error(f"Ei yhteyttä luokittelutiedostoon: {e}")
                 st.stop()
-                
+            #elist
+            #st.stop()
             ecols = df_cls.columns.tolist()[1:] #remove first col = 'ELINYMPÄRISTÖ'
             num_columns = [col for col in ecols if 'sel' not in col] + [area_col]
             str_columns = [col for col in ecols if 'sel' in col] + [type_col]
@@ -182,7 +183,7 @@ with tab1:
                             default_index = 0
 
                         # Use the default index in the selectbox
-                        selected_option = st.selectbox(selectbox_label, options=elist, index=default_index, key=f"{type_area}{key}")
+                        selected_option = st.selectbox(selectbox_label, options=elist, index=default_index, key=f"{type_area}")
                         selections[type_area] = selected_option
 
                     # Update grouped_df based on user selections and transfer data from df_cls
@@ -214,7 +215,7 @@ with tab1:
                             not_grouped_df.at[ind, name_col] = random.choice(random_names)
                     not_grouped_df.insert(0, 'index', index_values)
                     
-                    for index, type_area in not_grouped_df[type_col].iteritems():
+                    for index, type_area in not_grouped_df[type_col].items():
                         selectbox_label = f"{type_area}, Index={index}"
                         #gen defaults..
                         if sorsa == "OSM":
@@ -275,9 +276,17 @@ with tab1:
                                         values=values,
                                         color=color, hover_data=hover,
                                         color_continuous_scale='Greens',#'YlGn',
+                                        labels={color:'Arvo'},
                                         #color_continuous_midpoint=np.average(df[color], weights=df[values]),
                                         height=400
                                         )
+                        fig.update_layout(
+                            coloraxis_colorbar=dict(
+                                title='Arvo',
+                                tickvals=[df[color].min(),df[color].max()],
+                                ticktext=['matala','korkea']
+                            )
+                        )
                         return fig
                     
                     path_cols = ['name',type_col]
@@ -310,7 +319,7 @@ with tab1:
                     edited_gdf = gpd.GeoDataFrame(edited_gdf)
                     
                     keep_cols = [name_col, type_col, area_col,'kxAla','geometry'] + ecols
-                    color_col = 'kxAla'
+                    color_col = 'kxAla' 
                     edited_on_map = utils.plot_landuse(edited_gdf[keep_cols],title=None,hover_name=type_col,col=color_col,zoom=15)
                     st.plotly_chart(edited_on_map, use_container_width=True, config = {'displayModeBar': False})
                             
