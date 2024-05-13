@@ -117,6 +117,8 @@ with tab1:
             conn = st.connection("gsheets", type=GSheetsConnection)
             try:
                 df_cls = conn.read()
+                st.table(df_cls)
+                st.stop()
                 df_cls.columns = df_cls.columns.str.lower()
                 elinymp_col = 'elinympäristö'
                 elist = df_cls[df_cls[elinymp_col]].tolist()
