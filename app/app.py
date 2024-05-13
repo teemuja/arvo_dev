@@ -118,7 +118,8 @@ with tab1:
             try:
                 df_cls = conn.read()
                 df_cls.columns = df_cls.columns.str.lower()
-                elist = df_cls[df_cls.columns[0]].tolist()
+                elinymp_col = 'elinympäristöt'
+                elist = df_cls[df_cls[elinymp_col]].tolist()
             except Exception as e:
                 st.error(f"Ei yhteyttä luokittelutiedostoon: {e}")
                 st.stop()
@@ -197,7 +198,7 @@ with tab1:
                             for e in ecols:
                                 if e not in grouped_df.columns:
                                     grouped_df[e] = pd.NA  # Initialize the column if it doesn't exist
-                                kx = df_cls.loc[df_cls[df_cls.columns[0]] == selected, e]
+                                kx = df_cls.loc[df_cls[elinymp_col] == selected, e]
                                 if not kx.empty:
                                     kx_value = kx.iloc[0]
                                     grouped_df.at[ind, e] = kx_value
@@ -236,7 +237,7 @@ with tab1:
                         selected = selections.get(index)
                         if selected:
                             for e in ecols:
-                                kx = df_cls.loc[df_cls[df_cls.columns[0]] == selected, e]
+                                kx = df_cls.loc[df_cls[elinymp_col] == selected, e]
                                 if not kx.empty:
                                     kx_value = kx.iloc[0]
                                     not_grouped_df.at[index, e] = kx_value
