@@ -117,16 +117,13 @@ with tab1:
             conn = st.connection("gsheets", type=GSheetsConnection)
             try:
                 df_cls = conn.read()
-                df_cls
-                st.stop()
                 df_cls.columns = df_cls.columns.str.lower()
-                elinymp_col = 'elinympäristö'
+                elinymp_col = df_cls.columns[0] #'elinympäristöt'
                 elist = df_cls[df_cls[elinymp_col]].tolist()
             except Exception as e:
                 st.error(f"Ei yhteyttä luokittelutiedostoon: {e}")
                 st.stop()
-            #elist
-            #st.stop()
+            
             ecols = df_cls.columns.tolist()[1:] #remove first col = 'ELINYMPÄRISTÖ'
             num_columns = [col for col in ecols if 'sel' not in col] + [area_col]
             str_columns = [col for col in ecols if 'sel' in col] + [type_col]
