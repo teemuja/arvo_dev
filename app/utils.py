@@ -27,7 +27,7 @@ def check_password():
     def password_entered():
         if (
             st.session_state["password"]
-            == st.secrets["passwords"]["cfua"]
+            == st.secrets["passwords"]["arvo"]
         ):
             st.session_state["password_correct"] = True
             del st.session_state["password"]

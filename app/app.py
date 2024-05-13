@@ -13,6 +13,9 @@ st.set_page_config(page_title="ARVO dev app", layout="wide")
 st.header("A R V O dev",divider='green')
 st.markdown("Tutkimusappi alueviherkertoimen kehitykseen [ARVO](https://figbc.fi/arvo-viherrakenteen-arviointi-ja-vahvistaminen-kaupunkien-maankayton-suunnittelussa)-hankkeessa.")
 
+if not utils.check_password():
+    st.stop()
+    
 tab1,tab2 = st.tabs(["Nykytila-analyysi","Suunnitelma-analyysi"])
 
 with tab1:
@@ -31,7 +34,7 @@ with tab1:
             st.warning('Anna tarkempi osoite')
             st.stop()
     else:
-        st.warning('Anna tarkempi osoite')
+        #st.warning('Anna tarkempi osoite')
         st.stop()
     
     with st.expander('Elinympäristöt datassa',expanded=True):
@@ -113,6 +116,10 @@ with tab1:
     if gdf is not None and not gdf.empty:
         with st.expander('Viherkerroinlaskenta',expanded=True):
             
+            #make pers index
+            gdf.reset_index(inplace=True)
+            gdf.rename(columns={'index':'orig_index'}, inplace=True)
+            
             #luokitukset
             conn = st.connection("gsheets", type=GSheetsConnection)
             try:
@@ -125,6 +132,7 @@ with tab1:
                 st.stop()
             
             ecols = df_cls.columns.tolist()[1:] #remove first col
+            kx_columns = [col for col in ecols if 'sel' not in col]
             num_columns = [col for col in ecols if 'sel' not in col] + [area_col]
             str_columns = [col for col in ecols if 'sel' in col] + [type_col]
             
@@ -136,8 +144,9 @@ with tab1:
             metodi = s1.radio('Määritä elinympäristöjä..',['Ryhmiteltynä','Yksittäin'],horizontal=True)
             minarea = s2.slider('Aseta min.ala m2',0,1000,500,100)
             df_for_edit = df_for_edit[df_for_edit[area_col] >= minarea]
-            s1,s2 = st.columns([1,2])
             
+            s1,s2 = st.columns([1,2])
+            #luokitteluloota
             with s1.container(height=300):
                 st.markdown('**Luokittelu**')
                 
@@ -202,7 +211,7 @@ with tab1:
                                     kx_value = kx.iloc[0]
                                     grouped_df.at[ind, e] = kx_value
                                    
-                    df_for_cls = grouped_df.copy()
+                    df_for_editor = grouped_df.copy()
 
                 else:
                     #..and same for not_grouped..
@@ -242,115 +251,129 @@ with tab1:
                                     not_grouped_df.at[index, e] = kx_value
                                 else:
                                     print(f"No data found for {selected} in column {e}")
-                    df_for_cls = not_grouped_df.copy()
-                            
+                    df_for_editor = not_grouped_df.copy()
+            
+            
+            #pisteytyseditori
             with s2.container(height=300):
                 st.markdown('**Pisteytys**')
-                use_cols = ['index',name_col] + [type_col] + [area_col] + ecols
+                myeditor = st.empty()
 
-                # USE PARTIAL RERUN HERE TO UPDATE MAP!
-                try:
+            
+            #plotit
+            @st.experimental_fragment
+            def plot_edited_df(df_for_editor,gdf):
+                cols_for_editor = [name_col, type_col, area_col] + ecols + ["orig_index"]
+                
+                #editor
+                with myeditor:
                     edited_df = st.data_editor(
-                                    df_for_cls[use_cols],
+                                    df_for_editor[cols_for_editor],
                                     hide_index=True,
                                     #height=300,
                                     #column_config={"Select": st.column_config.CheckboxColumn(required=True)},
                                     #disabled=df_for_edit.columns,
                                     use_container_width=True
                                 )
-                except:
-                    st.warning('Ei dataa')
-                    st.stop()
-            
-            #prepare for calc
-            for col in num_columns:
-                edited_df[col] = pd.to_numeric(edited_df[col], errors='coerce')
-            edited_df[area_col] = edited_df[area_col].astype(int)
-            edited_df['kxAla'] = round(edited_df[num_columns].multiply(edited_df[area_col], axis=0).sum(axis=1),-1).astype(int)
-            
-            #VISUT
-            st.markdown("---")
-            col1,col2 = st.columns([2,1])
                 
-            if metodi == 'Ryhmiteltynä':
-                with col1.container():
-                    #sun
-                    def sun_plot(df,path,values,color,hover):
-                        fig = px.sunburst(df, path=path,
-                                        values=values,
-                                        color=color, hover_data=hover,
-                                        color_continuous_scale='Greens',#'YlGn',
-                                        labels={color:'Arvo'},
-                                        #color_continuous_midpoint=np.average(df[color], weights=df[values]),
-                                        height=400
-                                        )
-                        fig.update_layout(
-                            coloraxis_colorbar=dict(
-                                title='Arvo',
-                                tickvals=[df[color].min(),df[color].max()],
-                                ticktext=['matala','korkea']
-                            )
-                        )
-                        return fig
-                    
-                    path_cols = ['name',type_col]
-                    value_col = area_col  # sectors
-                    color_col = 'kxAla'
-                    
-                    #add non-green area
-                    tot_ala = (3.14 * r*r) #hakualue
-                    eAla = edited_df[area_col].sum()
-                    rAla = tot_ala - eAla
-                    rAla_row = {
-                        'name': 'maankäyttö',
-                        type_col: 'nan',
-                        area_col: rAla
-                        }
-                    rAla_df = pd.DataFrame([rAla_row])
-                    edited_df_plot = pd.concat([edited_df, rAla_df], ignore_index=True)
+                #prepare for calc
+                for col in num_columns:
+                    edited_df[col] = pd.to_numeric(edited_df[col], errors='coerce')
+                edited_df[area_col] = edited_df[area_col].astype(int)
+                edited_df['kxAla'] = sum(edited_df[col] * edited_df[area_col] for col in kx_columns)
 
-                    # sun plot
-                    sun_fig = sun_plot(df=edited_df_plot.fillna(0), path=path_cols, values=value_col, color=color_col, hover=None)
-                    st.plotly_chart(sun_fig, use_container_width=True, config = {'displayModeBar': False})
-                    
-            else:
-                with col1.container():
-                    #plot the map when not grouped...
-                    gdf.reset_index(inplace=True)
-                    gdf.rename(columns={'index': 'original_index'}, inplace=True)
-                    edited_gdf = edited_df.merge(gdf[['original_index', 'geometry']], left_on='index', right_on='original_index', how='left')
-                    edited_gdf.drop('original_index', axis=1, inplace=True)
-                    edited_gdf = gpd.GeoDataFrame(edited_gdf)
-                    
-                    keep_cols = [name_col, type_col, area_col,'kxAla','geometry'] + ecols
-                    color_col = 'kxAla' 
-                    edited_on_map = utils.plot_landuse(edited_gdf[keep_cols],title=None,hover_name=type_col,col=color_col,zoom=15)
-                    st.plotly_chart(edited_on_map, use_container_width=True, config = {'displayModeBar': False})
-                            
-            
-            #for col2..
-            with col2.container():
-                
-                #sum results
-                kxAla = edited_df['kxAla'].sum()
+                #add non-green area
                 tot_ala = (3.14 * r*r) #hakualue
                 eAla = edited_df[area_col].sum()
-                arvo = round((eAla + kxAla)/tot_ala,2)
-                base_line = 1000
-                delta = -(base_line - arvo)
-            
-                latex_code = r"""
-                            $
-                            \frac{\sum eAla + \sum eAla*Kx}{\sum totAla}
-                            $
-                            """
+                rAla = tot_ala - eAla
+                rAla_row = {
+                    'name': 'maankäyttö',
+                    type_col: 'kadut ja rakennukset',
+                    area_col: rAla
+                    }
+                rAla_df = pd.DataFrame([rAla_row])
+                edited_df_plot = pd.concat([edited_df, rAla_df], ignore_index=True)
+                edited_df_plot['name'] = edited_df_plot['name'].fillna('viherrakenne')
+                edited_df_plot = edited_df_plot.fillna(0)
                 
-                st.markdown("###")
-                st.markdown("###")
-                st.markdown("###")
-                st.metric("Alueviherkerroin",value=arvo,delta=delta)
-                st.markdown("###")
-                st.markdown(latex_code,unsafe_allow_html=True)
+                st.markdown("---")
+                col1,col2 = st.columns([2,1])
+                
+                if metodi == 'Ryhmiteltynä':
+                    with col1.container():
+                        #sun
+                        def sun_plot(df,path,values,color,hover):
+                            fig = px.sunburst(df, path=path,
+                                            values=values,
+                                            color=color, hover_data=hover,
+                                            color_continuous_scale='Greens',#'YlGn',
+                                            labels={color:'Arvo'},
+                                            #color_continuous_midpoint=np.average(df[color], weights=df[values]),
+                                            height=400
+                                            )
+                            fig.update_layout(
+                                coloraxis_colorbar=dict(
+                                    title='Arvo',
+                                    tickvals=[df[color].min(),df[color].max()],
+                                    ticktext=['matala','korkea']
+                                )
+                            )
+                            return fig
+                        
+                        # sun plot
+                        path_cols = ['name',type_col]
+                        value_col = area_col  # sectors
+                        color_col = 'kxAla'
+                        sun_fig = sun_plot(df=edited_df_plot, path=path_cols, values=value_col, color=color_col, hover=None)
+                        st.plotly_chart(sun_fig, use_container_width=True, config = {'displayModeBar': False})
+                        
+                else:
+                    with col1.container():
+                        #merge to gdf for map plot
+                        edited_merged = gdf.merge(edited_df_plot, on='orig_index')
+                        edited_merged.rename(columns={f'{name_col}_y':name_col,
+                                                    f'{type_col}_y':type_col,
+                                                    f'{area_col}_y':area_col},
+                                                     inplace=True
+                                                    )
+                        
+                        keep_cols = [name_col, type_col, area_col,'kxAla','geometry'] + ecols
+                        color_col = 'kxAla'
+                        edited_on_map = utils.plot_landuse(edited_merged[keep_cols],title=None,
+                                                           hover_name=type_col,col=color_col,zoom=15,
+                                                           )
+                        st.plotly_chart(edited_on_map, use_container_width=True, config = {'displayModeBar': False})
+                                
+                #..and for col2..
+                with col2.container():
+                    
+                    #sum results
+                    kxAla = round(edited_df_plot['kxAla'].sum(),-1)
+                    tot_ala = (3.14 * r * r) #hakualue
+                    eAla = edited_df_plot.loc[edited_df_plot['name'] != 'maankäyttö'][area_col].sum()
+                    #st.text(f"tot_ala={tot_ala},hh={kxAla},elinympala={eAla}")
+                    
+                    arvo = round((eAla + kxAla)/tot_ala,2)
+                    base_line = 1
+                    delta = round(-(base_line - arvo),2)
+                
+                    latex_code = r"""
+                                $
+                                \frac{\sum eAla + \sum eAla*Kx}{\sum totAla}
+                                $
+                                """
+                    
+                    st.markdown("###")
+                    st.markdown("###")
+                    st.markdown("###")
+                    st.metric("Alueviherkerroin",value=arvo,delta=delta)
+                    st.markdown("###")
+                    st.markdown(latex_code,unsafe_allow_html=True)
+                    
+                return True
+
+            #plot the edited
+            plot_edited_df(df_for_editor,gdf)
 
 
 with tab2:
