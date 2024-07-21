@@ -6,6 +6,7 @@ import geopandas as gpd
 from shapely.geometry import Point, Polygon, box, LineString
 import random
 import geocoder
+import osmnx as ox
 import pyproj
 from pyproj import Transformer
 import requests
@@ -16,8 +17,6 @@ import zipfile
 import os
 import io
 import plotly.express as px
-import osmnx as ox
-ox.settings.use_cache=True
 
 px.set_mapbox_access_token(st.secrets['plotly']['MAPBOX_TOKEN'])
 mbtoken = st.secrets['plotly']['MAPBOX_TOKEN']
@@ -297,3 +296,38 @@ def extract_shapefiles_from_zip(file, geom_type):
     
     return None, None
 
+def feedback_editor(feedback_file = "data/feedback.csv"):
+    if "data" not in st.session_state:
+        st.session_state.data = pd.read_csv(feedback_file,usecols=["ideat"])
+    
+    editor = st.container()
+    
+    def callback():
+        edited_rows = st.session_state["data_editor"]["edited_rows"]
+        rows_to_delete = []
+
+        for idx, value in edited_rows.items():
+            if value["Delete"] is True:
+                rows_to_delete.append(idx)
+
+        st.session_state["data"] = (
+            st.session_state["data"].drop(rows_to_delete, axis=0).reset_index(drop=True)
+        )
+
+    columns = st.session_state["data"].columns
+    column_config = {column: st.column_config.TextColumn(disabled=True,width=[1,10]) for column in columns}
+
+    modified_df = st.session_state["data"].copy()
+    modified_df["Delete"] = False
+    #modified_df = modified_df[["Delete"] + modified_df.columns[:-1].tolist()]
+
+    with editor:
+        st.data_editor(
+            modified_df,
+            key="data_editor",
+            on_change=callback,
+            hide_index=True,
+            column_config=column_config,
+            use_container_width=True
+        )
+    return modified_df

@@ -1,7 +1,7 @@
 import streamlit as st
 import utils
 import pandas as pd
-from streamlit_gsheets import GSheetsConnection
+import time
 
 st.subheader("Kehitysideat")
 
@@ -13,9 +13,10 @@ fb_text = """
 st.markdown(fb_text)
 
 with st.status('Aiemmat ideat & huomiot'):
+    feedback_file = "data/feedback.csv"
     try:
-        conn = st.connection("feedback", type=GSheetsConnection)
-        df_fb = conn.read(usecols=[0,1])
+        #df_fb = utils.feedback_editor(feedback_file = "data/feedback.csv")
+        df_fb = pd.read_csv(feedback_file)
         for row in df_fb.itertuples():
             st.write(f"- {row.ideat} ")
             st.markdown("###")
@@ -23,7 +24,7 @@ with st.status('Aiemmat ideat & huomiot'):
         st.warning('Ei yhteyttä tietokantaan.')
     
 #form
-with st.form(key="feedback_form"):
+with st.form(key="feedback_form",clear_on_submit=True):
     user_idea = st.text_area(label="Uusi idea/huomio",max_chars=200)
     submit_button = st.form_submit_button(label="Lähetä")
     if submit_button:
@@ -38,5 +39,7 @@ with st.form(key="feedback_form"):
                 ]
             )
             updated_df = pd.concat([df_fb, new_idea], ignore_index=True)
-            conn.update(worksheet="ideat", data=updated_df)
+            updated_df.to_csv(feedback_file)
             st.success("Idea tallennettu!")
+            time.sleep(2)
+            st.rerun()

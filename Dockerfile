@@ -1,5 +1,5 @@
 #https://github.com/OSGeo/gdal/pkgs/container/gdal
-FROM ghcr.io/osgeo/gdal:ubuntu-small-3.8.4
+FROM ghcr.io/osgeo/gdal:ubuntu-small-3.8.5
 
 # Install python3-pip, git, and git LFS
 RUN apt-get update && \
@@ -8,11 +8,6 @@ RUN apt-get update && \
     apt-get update && \
     apt-get install -y git-lfs && \
     git lfs install
-
-#folder&reqs for streamlit app
-COPY ./app .
-RUN python -m pip install --upgrade pip
-RUN python -m pip install -r requirements.txt
 
 #setup csc allas reqs
 RUN python -m pip install python-openstackclient && \
@@ -25,12 +20,12 @@ RUN python -m pip install python-openstackclient && \
 RUN apt-get clean && \
     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
-#workdirs
-VOLUME /notebooks
-WORKDIR /notebooks
+#reqs
+COPY ./app .
+RUN python -m pip install -r requirements.txt
 
-# Expose port 8888 for Jupyter Notebook
-EXPOSE 8888
-
-# Start Jupyter Notebook when docker run
-CMD ["jupyter", "notebook", "--ip=0.0.0.0", "--port=8888", "--no-browser", "--allow-root"]
+# for jupyter use..
+#VOLUME /notebooks
+#WORKDIR /notebooks
+#EXPOSE 8888
+#CMD ["jupyter", "notebook", "--ip=0.0.0.0", "--port=8888", "--no-browser", "--allow-root"]

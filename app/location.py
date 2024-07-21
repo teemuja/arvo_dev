@@ -3,7 +3,6 @@ import pandas as pd
 import geopandas as gpd
 import numpy as np
 from shapely import wkt
-from streamlit_gsheets import GSheetsConnection
 import random
 import utils
 import plotly.express as px
@@ -103,14 +102,15 @@ with st.expander('Elinympäristöt datassa',expanded=True):
 if gdf is not None and not gdf.empty:
     with st.expander('Viherkerroinlaskenta',expanded=True):
         
+        classification_file = "data/classification.csv"
+        
         #make pers index
         gdf.reset_index(inplace=True)
         gdf.rename(columns={'index':'orig_index'}, inplace=True)
         
         #luokitukset
-        conn = st.connection("classification", type=GSheetsConnection)
         try:
-            df_cls = conn.read()
+            df_cls = pd.read_csv(classification_file)
             df_cls.columns = df_cls.columns.str.lower()
             #elinymp_col = 'elinympäristöt'
             elist = df_cls[df_cls.columns[0]].tolist()
