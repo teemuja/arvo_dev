@@ -8,7 +8,13 @@ import random
 import utils
 import plotly.express as px
 
-st.subheader("Kohdealueen analyysit")
+st.subheader("Kohdealueen analyysi")
+loc_text = """
+    Paikkatietopohjainen laskenta eri datalähteillä 
+    ([HSY](https://www.hsy.fi/ymparistotieto/paikkatiedot/rajapinnat/avoimet-paikkatietorajapinnat/),
+    [OSM](https://wiki.openstreetmap.org/wiki/Land_use)).
+"""
+st.markdown(loc_text)
 
 gdf = None
 r = 250
@@ -55,7 +61,7 @@ with st.expander('Elinympäristöt datassa',expanded=True):
         if latlon:
             try:
                 gdf = utils.get_hsy_maanpeite(latlon=latlon,radius=r)
-                if gdf is not None:
+                if gdf is not None and len(gdf) > 1: 
                     
                     name_col = "nimi"
                     area_col = "p_ala_m2"
@@ -74,8 +80,6 @@ with st.expander('Elinympäristöt datassa',expanded=True):
                     map_hsy = utils.plot_landuse(gdf,title,col=type_col,color_map=colors_hsy,zoom=15)
                     st.plotly_chart(map_hsy, use_container_width=True, config = {'displayModeBar': False})
                     
-                else:
-                    st.warning('Ei dataan')
             except TimeoutError:
                 st.warning('Ei yhteyttä dataan')
                 st.stop()
@@ -104,7 +108,7 @@ if gdf is not None and not gdf.empty:
         gdf.rename(columns={'index':'orig_index'}, inplace=True)
         
         #luokitukset
-        conn = st.connection("gsheets", type=GSheetsConnection)
+        conn = st.connection("classification", type=GSheetsConnection)
         try:
             df_cls = conn.read()
             df_cls.columns = df_cls.columns.str.lower()

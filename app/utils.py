@@ -14,6 +14,7 @@ import json
 import tempfile
 import zipfile
 import os
+import io
 import plotly.express as px
 import osmnx as ox
 ox.settings.use_cache=True
@@ -34,10 +35,10 @@ def check_password():
         else:
             st.session_state["logged_in"] = False
     if "logged_in" not in st.session_state:
-        st.text_input(label="password", type="password", on_change=password_entered, key="password")
+        st.text_input(label="Salasana", type="password", on_change=password_entered, key="password")
         return False
     elif not st.session_state["logged_in"]:
-        st.text_input(label="password", type="password", on_change=password_entered, key="password")
+        st.text_input(label="Salasana", type="password", on_change=password_entered, key="password")
         return False
     else:
         return True
@@ -123,14 +124,14 @@ def get_hsy_maanpeite(latlon, radius=250):
         if layer_gdf is not None:
             layers.append(layer_gdf)
         else:
-            return st.warning('Ei dataa kohteessa.')
+            st.warning('Ei dataa kohteessa.')
     if layers:
         try:
             result = gpd.GeoDataFrame(pd.concat(layers, ignore_index=True),geometry='geometry',crs=3879)
             result["p_ala_m2"] = round(result["p_ala_m2"],0)
             return result.to_crs(4326)
         except:
-            return st.warning('Ei dataa kohteessa.')
+            st.warning('Ei dataa kohteessa.')
         
 def get_osm_landuse(latlon,radius=250,tags = {'natural':True,'landuse':True},exclude=['bay'],removeoverlaps=False):
     data = ox.features_from_point(center_point=latlon,dist=radius,tags=tags).reset_index()
@@ -295,3 +296,4 @@ def extract_shapefiles_from_zip(file, geom_type):
             return data #, filename
     
     return None, None
+
