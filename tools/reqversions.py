@@ -1,7 +1,7 @@
 import pkg_resources
 
 # Path to your requirements.txt file
-requirements_file = "requirements.txt"
+requirements_file = "../app/requirements.txt"
 
 # Read the requirements file to get the list of required packages
 with open(requirements_file, 'r') as file:
