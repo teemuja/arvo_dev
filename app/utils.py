@@ -14,9 +14,10 @@ import json
 import tempfile
 import zipfile
 import os
+import io
 import plotly.express as px
 import osmnx as ox
-ox.config(use_cache=True, log_console=True)
+ox.settings.use_cache=True
 
 px.set_mapbox_access_token(st.secrets['plotly']['MAPBOX_TOKEN'])
 mbtoken = st.secrets['plotly']['MAPBOX_TOKEN']
@@ -29,15 +30,15 @@ def check_password():
             st.session_state["password"]
             == st.secrets["passwords"]["arvo"]
         ):
-            st.session_state["password_correct"] = True
+            st.session_state["logged_in"] = True
             del st.session_state["password"]
         else:
-            st.session_state["password_correct"] = False
-    if "password_correct" not in st.session_state:
-        st.text_input(label="password", type="password", on_change=password_entered, key="password")
+            st.session_state["logged_in"] = False
+    if "logged_in" not in st.session_state:
+        st.text_input(label="Salasana", type="password", on_change=password_entered, key="password")
         return False
-    elif not st.session_state["password_correct"]:
-        st.text_input(label="password", type="password", on_change=password_entered, key="password")
+    elif not st.session_state["logged_in"]:
+        st.text_input(label="Salasana", type="password", on_change=password_entered, key="password")
         return False
     else:
         return True
@@ -48,7 +49,7 @@ def getlatlon(add):
         lon = loc.lng
         lat = loc.lat
         latlon = (lat,lon)
-        return latlon,loc
+        return latlon
     else:
         return None
 
@@ -123,11 +124,14 @@ def get_hsy_maanpeite(latlon, radius=250):
         if layer_gdf is not None:
             layers.append(layer_gdf)
         else:
-            return st.warning('Ei tuloksia.')
+            st.warning('Ei dataa kohteessa.')
     if layers:
-        result = gpd.GeoDataFrame(pd.concat(layers, ignore_index=True),geometry='geometry',crs=3879)
-        result["p_ala_m2"] = round(result["p_ala_m2"],0)
-        return result.to_crs(4326)
+        try:
+            result = gpd.GeoDataFrame(pd.concat(layers, ignore_index=True),geometry='geometry',crs=3879)
+            result["p_ala_m2"] = round(result["p_ala_m2"],0)
+            return result.to_crs(4326)
+        except:
+            st.warning('Ei dataa kohteessa.')
         
 def get_osm_landuse(latlon,radius=250,tags = {'natural':True,'landuse':True},exclude=['bay'],removeoverlaps=False):
     data = ox.features_from_point(center_point=latlon,dist=radius,tags=tags).reset_index()
@@ -292,3 +296,4 @@ def extract_shapefiles_from_zip(file, geom_type):
             return data #, filename
     
     return None, None
+
