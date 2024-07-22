@@ -13,13 +13,13 @@ fb_text = """
 st.markdown(fb_text)
 
 with st.status('Aiemmat ideat & huomiot'):
-    feedback_file = "data/feedback.csv"
+    feedback_filename = "feedback.csv"
     try:
-        #df_fb = utils.feedback_editor(feedback_file = "data/feedback.csv")
-        df_fb = pd.read_csv(feedback_file)
+        df_fb = utils.allas_csv_handler(download_csv=feedback_filename)
         for row in df_fb.itertuples():
-            st.write(f"- {row.ideat} ")
-            st.markdown("###")
+            if row is not None:
+                st.write(f"- {row.ideat} ")
+                st.markdown("###")
     except:
         st.warning('Ei yhteyttä tietokantaan.')
     
@@ -39,7 +39,7 @@ with st.form(key="feedback_form",clear_on_submit=True):
                 ]
             )
             updated_df = pd.concat([df_fb, new_idea], ignore_index=True)
-            updated_df.to_csv(feedback_file)
+            utils.allas_csv_handler(upload_df=updated_df,upload_filename=feedback_filename)
             st.success("Idea tallennettu!")
             time.sleep(2)
             st.rerun()

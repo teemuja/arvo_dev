@@ -11,6 +11,7 @@ import pyproj
 from pyproj import Transformer
 import requests
 from io import BytesIO
+import boto3
 import json
 import tempfile
 import zipfile
@@ -331,3 +332,30 @@ def feedback_editor(feedback_file = "data/feedback.csv"):
             use_container_width=True
         )
     return modified_df
+
+# allas s3 conn
+def allas_csv_handler(folder_name="app_data", download_csv=None, upload_df=None, upload_filename=None):
+    bucket_name='arvodev'
+    session = boto3.session.Session()
+    client = session.client('s3',
+                            endpoint_url=st.secrets['allas']['allas_host_url'],
+                            aws_access_key_id=st.secrets['allas']['allas_access_key'], 
+                            aws_secret_access_key=st.secrets['allas']['allas_secret_key']
+                            )
+    def download_csv_as_df_from_spaces(client, bucket_name, file_name):
+        filepath = f"{folder_name}/{file_name}"
+        obj = client.get_object(Bucket=bucket_name, Key=filepath)
+        df = pd.read_csv(obj['Body'], on_bad_lines='skip')
+        return df
+
+    def upload_df_as_csv_to_spaces(client, bucket_name, upload_df, upload_filename):
+        csv_buffer = upload_df.to_csv(index=False)
+        filepath = f"{folder_name}/{upload_filename}"
+        client.put_object(Bucket=bucket_name, Key=filepath, Body=csv_buffer, ContentType='text/csv')
+    
+    if download_csv is not None:
+        return download_csv_as_df_from_spaces(client, bucket_name, file_name=download_csv)
+    elif upload_df is not None and upload_filename is not None:
+        upload_df_as_csv_to_spaces(client, bucket_name, upload_df, upload_filename)
+    else:
+        raise ValueError("Missing data")

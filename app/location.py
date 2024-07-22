@@ -102,7 +102,7 @@ with st.expander('Elinympäristöt datassa',expanded=True):
 if gdf is not None and not gdf.empty:
     with st.expander('Viherkerroinlaskenta',expanded=True):
         
-        classification_file = "data/classification.csv"
+        classification_file = "classification.csv"
         
         #make pers index
         gdf.reset_index(inplace=True)
@@ -110,7 +110,7 @@ if gdf is not None and not gdf.empty:
         
         #luokitukset
         try:
-            df_cls = pd.read_csv(classification_file)
+            df_cls = utils.allas_csv_handler(download_csv=classification_file)
             df_cls.columns = df_cls.columns.str.lower()
             #elinymp_col = 'elinympäristöt'
             elist = df_cls[df_cls.columns[0]].tolist()
