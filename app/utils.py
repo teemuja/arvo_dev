@@ -183,7 +183,7 @@ def get_osm_landuse(latlon,radius=250,tags = {'natural':True,'landuse':True},exc
     result_gdf = filtered_gdf.to_crs(4326)[existing_columns]
     return result_gdf
 
-def plot_landuse(gdf,title,hover_name=None,col='type',color_map=None,zoom=14):
+def plot_landuse(gdf,title,hover_name=None,hover_data=None,col='type',color_map=None,zoom=14):
 
     #scale cirle
     lat = gdf.unary_union.centroid.y
@@ -209,6 +209,7 @@ def plot_landuse(gdf,title,hover_name=None,col='type',color_map=None,zoom=14):
                             title=title,
                             color=col,
                             hover_name=hover_name,
+                            hover_data=hover_data,
                             color_continuous_scale="Greens",
                             color_discrete_map=color_map,
                             category_orders={col:cat_order},
@@ -350,12 +351,28 @@ def allas_csv_handler(folder_name="app_data", download_csv=None, upload_df=None,
 
     def upload_df_as_csv_to_spaces(client, bucket_name, upload_df, upload_filename):
         csv_buffer = upload_df.to_csv(index=False)
-        filepath = f"{folder_name}/{upload_filename}"
+        filepath = f"{folder_name}/{upload_filename}.csv"
         client.put_object(Bucket=bucket_name, Key=filepath, Body=csv_buffer, ContentType='text/csv')
+        return True
+    
+    def list_files_from_bucket(client,bucket_name,folder_name):
+        objects = client.list_objects_v2(Bucket=bucket_name, Prefix=folder_name)
+        csv_files = []
+        for obj in objects.get('Contents', []):
+            file_name = obj['Key']
+            if file_name.endswith('.csv'): # ..check if the file is CSV
+                csv_files.append(file_name)
+        return csv_files
+ 
+    if download_csv is None and upload_df is None and upload_filename is None:
+        return list_files_from_bucket(client,bucket_name,folder_name)
     
     if download_csv is not None:
         return download_csv_as_df_from_spaces(client, bucket_name, file_name=download_csv)
+    
     elif upload_df is not None and upload_filename is not None:
-        upload_df_as_csv_to_spaces(client, bucket_name, upload_df, upload_filename)
+        status = upload_df_as_csv_to_spaces(client, bucket_name, upload_df, upload_filename)
+        return status
+    
     else:
         raise ValueError("Missing data")

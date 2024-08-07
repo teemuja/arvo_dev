@@ -7,6 +7,7 @@ import utils
 import plotly.express as px
 import requests
 import io
+import score_module
 
 st.subheader("Suunnitelman analyysi")
 plan_text = """
@@ -36,6 +37,19 @@ else:
         demo_plan_file = io.BytesIO(r.content)
         gdf_slu = utils.extract_shapefiles_from_zip(demo_plan_file,'Polygon')
         
-if gdf_slu is not None:
-    st.success('go on..')
+if gdf_slu is not None and not gdf_slu.empty:
+    c1,c2 = st.columns(2)
+    orig_cols = gdf_slu.drop(columns="geometry").columns.tolist()
+    orig_cols.insert(0,'...')
+    type_col = c1.selectbox(label='luokittelutieto',options=orig_cols)
+    name_col = c2.selectbox(label='kohdenimi',options=orig_cols)
+    area_col = "area"
     
+    if type_col != "...":
+        with st.expander('Viherkerroinlaskenta',expanded=True):
+            try:
+                score_module.scoring(gdf=gdf_slu,source=None,
+                                     name_col=name_col,area_col=area_col,type_col=type_col,
+                                     classification_file="classification_landuse.csv")
+            except:
+                st.warning('Tarkista valinnat')

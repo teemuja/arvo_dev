@@ -16,12 +16,13 @@ feedback_page = st.Page("feedback.py", title="Kehitysideat")
 
 location = st.Page("location.py", title="Kohdealueen analyysi")
 plans = st.Page("plans.py", title="Suunnitelman analyysi", )
+saved = st.Page("saved.py", title="Tallennetut analyysit", )
 
 if st.session_state.logged_in:
     menu = st.navigation(
         {
             "Info": [home_page,feedback_page],
-            "Demot": [location,plans]
+            "Demot": [location,plans,saved]
         }
     )
     menu.run()
