@@ -2,6 +2,7 @@
 #utils.py
 import streamlit as st
 import pandas as pd
+import numpy as np
 import geopandas as gpd
 from shapely.geometry import Point, Polygon, box, LineString
 import random
@@ -18,6 +19,7 @@ import zipfile
 import os
 import io
 import plotly.express as px
+import plotly.graph_objects as go
 
 px.set_mapbox_access_token(st.secrets['plotly']['MAPBOX_TOKEN'])
 mbtoken = st.secrets['plotly']['MAPBOX_TOKEN']
@@ -80,7 +82,7 @@ def print_wfs_layers(url = 'https://kartta.hsy.fi/geoserver/wfs'):
     else:
         print(f"Failed to get capabilities from WFS service, status code: {response.status_code}")
 
-        
+@st.cache_data(max_entries=1)
 def get_hsy_maanpeite(latlon, radius=250):
     
     transformer = Transformer.from_crs("EPSG:4326", "EPSG:3879", always_xy=True)
@@ -124,15 +126,16 @@ def get_hsy_maanpeite(latlon, radius=250):
         if layer_gdf is not None:
             layers.append(layer_gdf)
         else:
-            st.warning('Ei dataa kohteessa.')
-    if layers:
+            st.warning('Tarkenna osoite.')
+    if len(layers) > 1:
         try:
             result = gpd.GeoDataFrame(pd.concat(layers, ignore_index=True),geometry='geometry',crs=3879)
             result["p_ala_m2"] = round(result["p_ala_m2"],0)
             return result.to_crs(4326)
         except:
-            st.warning('Ei dataa kohteessa.')
-        
+            st.warning('Ei dataa kohteessa. Tarkenna osoite.')
+
+@st.cache_data(max_entries=1)
 def get_osm_landuse(latlon,radius=250,tags = {'natural':True,'landuse':True},exclude=['bay'],removeoverlaps=False):
     data = ox.features_from_point(center_point=latlon,dist=radius,tags=tags).reset_index()
     gdf = data.loc[data['geometry'].geom_type.isin(['Polygon', 'MultiPolygon'])]
@@ -183,7 +186,8 @@ def get_osm_landuse(latlon,radius=250,tags = {'natural':True,'landuse':True},exc
     result_gdf = filtered_gdf.to_crs(4326)[existing_columns]
     return result_gdf
 
-def plot_landuse(gdf,title,hover_name=None,hover_data=None,col='type',color_map=None,zoom=14):
+def plot_landuse(gdf,title=None,name_col=None,hover_name=None,hover_data=None,col=None,color_map=None,
+                 zoom=14,height=700):
 
     #scale cirle
     lat = gdf.unary_union.centroid.y
@@ -192,17 +196,22 @@ def plot_landuse(gdf,title,hover_name=None,hover_data=None,col='type',color_map=
     center_gdf = center_gdf.to_crs("EPSG:3879")
     circle = center_gdf.iloc[0].geometry.buffer(250)
     ring = gpd.GeoDataFrame(geometry=[circle], crs="EPSG:3879").to_crs("EPSG:4326")
-
+    
     if color_map is None:
         unique_categories = gdf[col].unique()
-        colors = px.colors.qualitative.Set2
+        colors = px.colors.qualitative.Pastel1 #https://plotly.com/python/discrete-color/
         color_map = {category: colors[i % len(colors)] for i, category in enumerate(unique_categories)}
         cat_order = list(color_map.keys())
     else:
         cat_order = list(color_map.keys())
     
+    #centroids
+    gdf['lon'] = gdf.centroid.x
+    gdf['lat'] = gdf.centroid.y
     lat = gdf.unary_union.centroid.y
     lon = gdf.unary_union.centroid.x
+    
+    #map
     fig_map = px.choropleth_mapbox(gdf,
                             geojson=gdf.geometry,
                             locations=gdf.index,
@@ -212,13 +221,14 @@ def plot_landuse(gdf,title,hover_name=None,hover_data=None,col='type',color_map=
                             hover_data=hover_data,
                             color_continuous_scale="Greens",
                             color_discrete_map=color_map,
+                            labels={col:'Elinymp_luokka'},
                             category_orders={col:cat_order},
                             center={"lat": lat, "lon": lon},
                             mapbox_style=arvo_style,
                             zoom=zoom,
                             opacity=0.5,
                             width=1200,
-                            height=700
+                            height=height
                             )
     if ring is not None:
         fig_map.update_layout(
@@ -233,7 +243,22 @@ def plot_landuse(gdf,title,hover_name=None,hover_data=None,col='type',color_map=
                 ]
             }
         )
-
+    #add texts if name_col
+    if name_col is not None:
+        fig_map.add_trace(
+            go.Scattermapbox(
+                lon=gdf['lon'],
+                lat=gdf['lat'],
+                mode='text',
+                text=gdf[name_col],
+                textfont=dict(color="white", size=15),
+                showlegend=False,
+                hoverinfo='none',
+                hovertext=''
+            )
+        )
+    
+    #update margins
     fig_map.update_layout(margin={"r": 10, "t": 50, "l": 10, "b": 10}, height=700,
                                 legend=dict(
                                     yanchor="top",
@@ -242,6 +267,7 @@ def plot_landuse(gdf,title,hover_name=None,hover_data=None,col='type',color_map=
                                     x=0.02
                                 )
                                 )
+    #..and colorbar
     fig_map.update_layout(
                             coloraxis_colorbar=dict(
                                 title='Arvo',
@@ -376,3 +402,4 @@ def allas_csv_handler(folder_name="app_data", download_csv=None, upload_df=None,
     
     else:
         raise ValueError("Missing data")
+    

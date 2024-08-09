@@ -38,18 +38,19 @@ else:
         gdf_slu = utils.extract_shapefiles_from_zip(demo_plan_file,'Polygon')
         
 if gdf_slu is not None and not gdf_slu.empty:
-    c1,c2 = st.columns(2)
+    c1,c2,c3,c4 = st.columns(4)
     orig_cols = gdf_slu.drop(columns="geometry").columns.tolist()
     orig_cols.insert(0,'...')
     type_col = c1.selectbox(label='luokittelutieto',options=orig_cols)
-    name_col = c2.selectbox(label='kohdenimi',options=orig_cols)
+    name_col = c2.selectbox(label='kohdenimet',options=orig_cols)
+    expl_col = c3.selectbox(label='kuvaus',options=orig_cols)
+    gfa_col = c4.selectbox(label='kerrosala',options=orig_cols)
     area_col = "area"
     
-    if type_col != "...":
-        with st.expander('Viherkerroinlaskenta',expanded=True):
-            try:
-                score_module.scoring(gdf=gdf_slu,source=None,
-                                     name_col=name_col,area_col=area_col,type_col=type_col,
-                                     classification_file="classification_landuse.csv")
-            except:
-                st.warning('Tarkista valinnat')
+    if name_col != "..." and type_col != "..." and expl_col != "..." and gfa_col != "...":
+        score_module.scoring_table_for_plans(gdf=gdf_slu,
+                                             name_col=name_col,
+                                             area_col=area_col,
+                                             type_col=type_col,
+                                             expl_col=expl_col,
+                                             gfa_col=gfa_col)

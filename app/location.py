@@ -3,6 +3,7 @@ import pandas as pd
 import random
 import utils
 import plotly.express as px
+import score_module
 
 st.subheader("Kohdealueen analyysi")
 loc_text = """
@@ -14,11 +15,15 @@ st.markdown(loc_text)
 
 gdf = None
 r = 250
-s1,s2,s3 = st.columns([1,1,2])
+s1,s2 = st.columns([1,2])
 add = s1.text_input('Kohdeosoite')
 sorsa = s2.radio('Datalähde',['HSY','OSM','oma'],horizontal=True)
 
-latlon = utils.getlatlon(add)
+try:
+    latlon = utils.getlatlon(add)
+except:
+    st.warning('Tarkenna osoite')
+    st.stop()
     
 with st.expander('Elinympäristöt datassa',expanded=True):
     if sorsa == 'OSM':
@@ -99,9 +104,11 @@ with st.expander('Elinympäristöt datassa',expanded=True):
 
 if gdf is not None and not gdf.empty:
     with st.expander('Viherkerroinlaskenta',expanded=True):
-        import score_module
-        score_module.scoring(gdf=gdf,
-                             source=sorsa,
-                             name_col=name_col,area_col=area_col,type_col=type_col,
-                             classification_file="classification.csv")
-        
+        try:
+            score_module.scoring_table(gdf=gdf,
+                                source=sorsa,
+                                name_col=name_col,area_col=area_col,type_col=type_col,
+                                classification_file="classification.csv")
+        except:
+            st.warning('Tarkenna osoite')
+            
