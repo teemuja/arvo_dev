@@ -26,6 +26,12 @@ except:
     st.stop()
     
 with st.expander('Elinympäristöt datassa',expanded=True):
+    #setmin area
+    def reset_session_state():
+        if "loc_df_updated" in st.session_state:
+            del st.session_state.loc_df_updated
+    minarea = st.slider('Min. pinta-ala elinympäristölle (m2)',0,1000,200,100, on_change=reset_session_state)
+    
     if sorsa == 'OSM':
         tag = 'Maanpeite' #s3.radio('Lähtötieto',['Maanpeite','Maankäyttö','Luontoalueet'],horizontal=True)
         if tag == 'Maankäyttö':
@@ -36,7 +42,7 @@ with st.expander('Elinympäristöt datassa',expanded=True):
             name = f"Luontoalueet {add}"
         else:
             tags = {'natural':True,'landuse':['grass','meadow','forest']}
-            name = f"Maanpeite {add}"
+            name = f"Elinympäristöt: {add}"
         if latlon:
             try:
                 gdf = utils.get_osm_landuse(latlon=latlon,tags=tags,radius=r)
@@ -45,6 +51,7 @@ with st.expander('Elinympäristöt datassa',expanded=True):
                     area_col = "pinta-ala"
                     type_col="luokka"
                     #plots
+                    gdf = gdf[gdf[area_col] >= minarea]
                     bar_osm = utils.plot_area_bars(gdf,x=area_col,y=type_col,color=type_col,color_map=None,title='Elinympäristötyypit datassa')
                     st.plotly_chart(bar_osm, use_container_width=True, config = {'displayModeBar': False})
                     map_osm = utils.plot_landuse(gdf,title=name,col=type_col,zoom=15)
@@ -67,7 +74,7 @@ with st.expander('Elinympäristöt datassa',expanded=True):
                     name_col = "nimi"
                     area_col = "p_ala_m2"
                     type_col = "kuvaus"
-                    title = f"Maanpeite {add}"
+                    title = f"Elinympäristöt: {add}"
                     colors_hsy = {
                         "Muu avoin matala kasvillisuus":"DarkKhaki",
                         "puusto, 2 m - 10 m":"DarkSeaGreen",
@@ -75,7 +82,7 @@ with st.expander('Elinympäristöt datassa',expanded=True):
                         "puusto, 15 m - 20 m":"DarkOliveGreen",
                         "Puusto yli 20 m":"DarkGreen"
                         }
-                    
+                    gdf = gdf[gdf[area_col] >= minarea]
                     bar_hsy = utils.plot_area_bars(gdf,x='p_ala_m2',y='kuvaus',color='kuvaus',color_map=colors_hsy)
                     st.plotly_chart(bar_hsy, use_container_width=True, config = {'displayModeBar': False})
                     map_hsy = utils.plot_landuse(gdf,title,col=type_col,color_map=colors_hsy,zoom=15)
@@ -102,13 +109,23 @@ with st.expander('Elinympäristöt datassa',expanded=True):
                 st.warning('Tarkista data')
             st.data_editor(gdf_oma.drop(columns='geometry'))
 
+
 if gdf is not None and not gdf.empty:
-    with st.expander('Viherkerroinlaskenta',expanded=True):
-        try:
-            score_module.scoring_table(gdf=gdf,
-                                source=sorsa,
-                                name_col=name_col,area_col=area_col,type_col=type_col,
-                                classification_file="classification.csv")
-        except:
-            st.warning('Tarkenna osoite')
+    with st.expander(f'Viherkerroinlaskenta (min {minarea} m² alueet)',expanded=True):
+        #try:
+        scoring_df = score_module.loc_scoring_table(gdf=gdf,
+                            source=sorsa,
+                            name_col=name_col,area_col=area_col,type_col=type_col,
+                            classification_file="classification.csv")
+        #download
+        csv_to_save = scoring_df.to_csv().encode('utf-8')
+        file_name = f"ana_{add}.csv"
+        file_name = file_name.lower().replace(' ', '_').replace(',', '_')
+        st.download_button(label="Lataa arviointitaulukko (csv)",
+                            data=csv_to_save,
+                            file_name=file_name,
+                            mime='text/csv')
+
+        #except:
+        #    st.warning('Tarkenna osoite')
             

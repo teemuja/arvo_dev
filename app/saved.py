@@ -41,5 +41,15 @@ if gdf_slu is not None:
                                 name_col=name_col,area_col=area_col,type_col=type_col
                                 )
     with st.expander('Arviointitaulukko', expanded=False):
-        st.data_editor(gdf_slu.drop(columns='geometry'))
+        save_df = gdf_slu.drop(columns=['geometry','wkt','lat','lon'])
+        save_df.rename(columns={'area':'pinta_ala'},inplace=True)
+        st.data_editor(save_df)
+        #download
+        csv_to_save = save_df.to_csv().encode('utf-8')
+        file_name = f"{myass}.csv"
+        file_name = file_name.lower().replace(' ', '_').replace(',', '_')
+        st.download_button(label="Lataa arviointitaulukko (csv)",
+                            data=csv_to_save,
+                            file_name=file_name,
+                            mime='text/csv')
 

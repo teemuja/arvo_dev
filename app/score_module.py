@@ -6,13 +6,13 @@ import random
 import plotly.express as px
 import utils
 
-def scoring_table(gdf=None,source=None,name_col=None,area_col=None,type_col=None,r=250,classification_file=None):
+def loc_scoring_table(gdf=None,source=None,name_col=None,area_col=None,type_col=None,r=250,classification_file=None):
 
     #make persistent index
     gdf.reset_index(inplace=True)
     gdf.rename(columns={'index':'orig_index'}, inplace=True)
     
-    #luokitukset
+    #get pre_calssification file
     if classification_file is not None:
         try:
             df_cls = utils.allas_csv_handler(download_csv=classification_file)
@@ -28,49 +28,43 @@ def scoring_table(gdf=None,source=None,name_col=None,area_col=None,type_col=None
         num_columns = [col for col in ecols if 'sel' not in col] + [area_col]
         str_columns = [col for col in ecols if 'sel' in col] + [type_col]
 
-    #luokitteltava df
+    #df to edit
     df_for_edit = gdf.drop(columns='geometry')
-
-    #selectors
-    s1,s2 = st.columns([1,2])
-    metodi = s1.radio('Määritä elinympäristöjä..',['Ryhmiteltynä','Yksittäin'],horizontal=True)
-    minarea = s2.slider('Min. pinta-ala elinympäristölle (m2)',0,1000,200,100)
-    df_for_edit = df_for_edit[df_for_edit[area_col] >= minarea]
-
-    s1,s2 = st.columns([1,2])
-    #luokitteluloota
-    with s1.container(height=300):
-        st.markdown('**Luokittelu**')
         
-        #dict for default values
-        osm_dict = {
-            "grass":'avonurmi',
-            "scrub":'niitty',
-            "grassland":'avonurmi',
-            "wetland":'niitty',
-            "wood":'metsä_nuori',
-            "forest":'metsä_vanha',
-            "bare_rock":"kalliot"
-            }
-        hsy_dict = {
-            "Muu avoin matala kasvillisuus":"avonurmi",
-            "puusto, 2 m - 10 m":"metsä_nuori",
-            "puusto, 10 m - 15 m":"metsä_nuori",
-            "puusto, 15 m - 20 m":"metsä_vanha",
-            "Puusto yli 20 m":"metsä_vanha"
-            }
-        
-        if metodi == 'Ryhmiteltynä':
+    with st.form('loc_assesment_form'):
+        s1,s2 = st.columns([1,2])
+        with s1.container(height=300):
+            st.markdown('**Pääluokitus**')
+            
+            #dict for default values
+            osm_dict = {
+                "grass":'avonurmi',
+                "scrub":'niitty',
+                "grassland":'avonurmi',
+                "wetland":'niitty',
+                "wood":'metsä_nuori',
+                "forest":'metsä_vanha',
+                "bare_rock":"kalliot"
+                }
+            hsy_dict = {
+                "Muu avoin matala kasvillisuus":"avonurmi",
+                "puusto, 2 m - 10 m":"metsä_nuori",
+                "puusto, 10 m - 15 m":"metsä_nuori",
+                "puusto, 15 m - 20 m":"metsä_vanha",
+                "Puusto yli 20 m":"metsä_vanha"
+                }
+            
+            #add random names if not in data
+            if name_col not in df_for_edit.columns:
+                random_names = ['Puutiaispuistikko','Perhosniitty','Taskupuisto','Hiilinielumetsä']
+                for ind, row in df_for_edit.iterrows():
+                    df_for_edit.at[ind, name_col] = random.choice(random_names)
+                    
             grouped_df = df_for_edit.groupby(by=type_col, group_keys=True).sum().reset_index()
-            area_types = grouped_df[type_col].tolist()
             key = 0
             selections = {}                        
             index_values = range(len(grouped_df))
-            grouped_df.insert(0, 'index', index_values)
-            
-            random_names = ['Puistikot','Pellot','Perhosniityt','Taskupuistot','Hiilinielumetsät']
-            for ind, row in grouped_df.iterrows():
-                grouped_df.at[ind, name_col] = random.choice(random_names)
+            grouped_df.insert(0, 'index', index_values)            
                 
             selections = {}
             for type_area in grouped_df[type_col].unique():
@@ -87,90 +81,58 @@ def scoring_table(gdf=None,source=None,name_col=None,area_col=None,type_col=None
                 selected_option = st.selectbox(selectbox_label, options=elist, index=default_index, key=f"{type_area}")
                 selections[type_area] = selected_option
 
-            # Update grouped_df based on user selections and transfer data from df_cls
-            for ind, row in grouped_df.iterrows():
+            # Update df_for_edit based on user selections and transfer data from df_cls
+            for ind, row in df_for_edit.iterrows():
                 original_type_area = row[type_col]
                 selected = selections.get(original_type_area)
                 if selected:
-                    grouped_df.at[ind, type_col] = selected  # Update type_col with the selected value
+                    df_for_edit.at[ind, type_col] = selected  # Update type_col with the selected value
 
-                    # Transfer related data from df_cls to grouped_df
+                    # Transfer related data from df_cls to df_for_edit
                     for e in ecols:
-                        if e not in grouped_df.columns:
-                            grouped_df[e] = pd.NA  # Initialize the column if it doesn't exist
+                        if e not in df_for_edit.columns:
+                            df_for_edit[e] = pd.NA  # Initialize the column if it doesn't exist
                         kx = df_cls.loc[df_cls[df_cls.columns[0]] == selected, e]
                         if not kx.empty:
                             kx_value = kx.iloc[0]
-                            grouped_df.at[ind, e] = kx_value
+                            df_for_edit.at[ind, e] = kx_value
                             
-            df_for_editor = grouped_df.copy()
-
-        else:
-            #..and same for not_grouped..
-            not_grouped_df = df_for_edit.copy()
-            index_values = not_grouped_df.index
-            if name_col not in not_grouped_df.columns:
-                random_names = ['Puutiaispuistikko','Perhosniitty','Hiilinielumetsä']
-                for ind, row in not_grouped_df.iterrows():
-                    not_grouped_df.at[ind, name_col] = random.choice(random_names)
-
-            not_grouped_df.insert(0, 'index', index_values)
-            
-            selections = {}
-            for index, type_area in not_grouped_df[type_col].items():
-                selectbox_label = f"{type_area}, Index={index}"
+            df_for_editor = df_for_edit.copy()
                 
-                #gen defaults..
-                if source == "OSM":
-                    try:
-                        default_index = elist.index(osm_dict[type_area])
-                    except:
-                        default_index = 0
-                elif source == "HSY":
-                    try:
-                        default_index = elist.index(hsy_dict[type_area])
-                    except:
-                        default_index = 0
-                else:
-                    default_index = 0
-            
-                selected_option = st.selectbox(selectbox_label,options=elist,index=default_index)
-                not_grouped_df.at[index, type_col] = selected_option
-                selections[index] = selected_option
-
-            for index, _ in not_grouped_df.iterrows():
-                selected = selections.get(index)
-                if selected:
-                    for e in ecols:
-                        kx = df_cls.loc[df_cls[df_cls.columns[0]] == selected, e]
-                        if not kx.empty:
-                            kx_value = kx.iloc[0]
-                            not_grouped_df.at[index, e] = kx_value
-                        else:
-                            print(f"No data found for {selected} in column {e}")
-                            
-            df_for_editor = not_grouped_df.copy()
-            
-    cols_for_editor = [name_col, type_col, area_col] + ecols + ["orig_index"]
-
-    #pisteytyseditori
-    with s2.container(height=300):
-        st.markdown('**Pisteytys**')
-        myeditor = st.empty()
-
-    #plotit
-    def plot_editor(df_for_editor,gdf,cols_for_editor):
+        cols_for_editor = [name_col, type_col, area_col] + ecols + ["orig_index"]
         
-        #editor
-        with myeditor:
+        #add df to session_state if first run
+        if "loc_df_updated" not in st.session_state:
+            st.session_state.loc_df_updated = df_for_editor
+            
+        #arv.taulukko
+        with s2.container(height=300):
+            st.markdown('**Arviointitaulukko**')
+            #use updated df from session state
+            df_for_editor = st.session_state.loc_df_updated
             edited_df = st.data_editor(
                             df_for_editor[cols_for_editor],
+                            column_config={
+                                                type_col: st.column_config.SelectboxColumn(
+                                                    "Elinympäristöluokka",
+                                                    help="Valitse sopivin tuplaklikkaamalla",
+                                                    width="medium",
+                                                    options=elist,
+                                                    required=True,
+                                                ),
+                                                'area': None,
+                                                'orig_index': None
+                                            },
                             hide_index=True,
-                            #height=300,
-                            #column_config={"Select": st.column_config.CheckboxColumn(required=True)},
-                            #disabled=df_for_edit.columns,
                             use_container_width=True
                         )
+            
+        update_df = st.form_submit_button('Päivitä graafit')
+        if update_df:
+            st.session_state.loc_df_updated = edited_df
+
+    #plotit
+    def plot_editor(edited_df,gdf):
         
         #prepare for calc
         for col in num_columns:
@@ -191,11 +153,11 @@ def scoring_table(gdf=None,source=None,name_col=None,area_col=None,type_col=None
         edited_df_plot = pd.concat([edited_df, rAla_df], ignore_index=True)
         edited_df_plot['landuse'] = edited_df_plot['landuse'].fillna('viherrakenne')
         edited_df_plot = edited_df_plot.fillna(0)
-        
-        st.markdown("---")
+            
+        # graafit
         col1,col2 = st.columns([2,1])
-        
-        if metodi == 'Ryhmiteltynä':
+        metodi = st.radio('Tarkastele',['Ryhmiteltynä graafina','Yksittäin kartalla'],horizontal=True)
+        if metodi == 'Ryhmiteltynä graafina':
             with col1.container():
                 #sun
                 def sun_plot(df,path,values,color,hover):
@@ -275,27 +237,9 @@ def scoring_table(gdf=None,source=None,name_col=None,area_col=None,type_col=None
         return edited_df
 
     #plot the editor
-    edited_df_for_save = plot_editor(df_for_editor,gdf,cols_for_editor=cols_for_editor)
+    edited_df_for_save = plot_editor(st.session_state.loc_df_updated,gdf)
 
-    #save mod
-    if metodi == "Yksittäin":
-        #add geom values from gdf to scoring table
-        merged_df = edited_df_for_save.merge(gdf[['orig_index', 'geometry']], on='orig_index', how='left')
-        result_gdf = gpd.GeoDataFrame(merged_df, geometry='geometry')
-        result_gdf['wkt'] = result_gdf['geometry'].apply(lambda x: x.wkt)
-        result_gdf.drop(columns='geometry', inplace=True)
-        result_gdf.rename(columns={type_col:'elinymp_luokka'},inplace=True)
-        export_cols = ['elinymp_luokka', 'nimi', area_col, 'kxAla', 'lumo', 'lumo_sel', 'melu', 'melu_sel', 'hule', 'hule_sel', 'ilma', 'ilma_sel', 'pöly', 'pöly_sel', 'terv', 'terv_sel', 'wkt']
-
-        st.markdown("---")
-        with st.form('Save',clear_on_submit=True):
-            name_of_scoring = st.text_input('Nimeä tarkastelu jos haluat tallentaa sen',max_chars=20)
-            saveit = st.form_submit_button('Talenna')
-            if saveit and name_of_scoring is not None and len(name_of_scoring) > 2:
-                file_name_for_save = f"ANA_{name_of_scoring}"
-                if utils.allas_csv_handler(upload_df=result_gdf[export_cols],upload_filename=file_name_for_save):
-                    st.success('Tallennettu!')
-
+    return edited_df_for_save
 
 def scoring_table_for_plans(gdf=None,name_col=None,area_col=None,type_col=None,expl_col=None,gfa_col=None,classification_file='classification_landuse.csv'):
 
@@ -321,15 +265,15 @@ def scoring_table_for_plans(gdf=None,name_col=None,area_col=None,type_col=None,e
     df_for_edit = gdf.drop(columns='geometry')
     
     #add df to session_state
-    if "df_updated" not in st.session_state:
-        st.session_state.df_updated = df_for_edit
+    if "plan_df_updated" not in st.session_state:
+        st.session_state.plan_df_updated = df_for_edit
     
     # scoring table and map
     with st.expander('Viherkerroinlaskenta',expanded=True):
         map_container = st.empty()
         map_selector = st.empty()
         
-        with st.form('assesment_form'):
+        with st.form('plan_assesment_form'):
             c1,c2 = st.columns([1,2])
             with c1.container(height=300):
                 st.markdown('Elinympäristöluokitus')
@@ -411,11 +355,11 @@ def scoring_table_for_plans(gdf=None,name_col=None,area_col=None,type_col=None,e
                 edited_df_updated = edited_df.fillna(0) #..for sunburst plot
             
             baseline_value = c1.number_input('Aleen lähtötasoarvo',min_value=0,max_value=10,value=5)
-            update_df = st.form_submit_button('Päivitä luokitus ja graafit')
+            update_df = st.form_submit_button('Päivitä graafit')
         
         #update
         if update_df:
-            st.session_state.df_updated = edited_df_updated
+            st.session_state.plan_df_updated = edited_df_updated
         
         #graafit
         c1b,c2b = st.columns([2,1])
@@ -509,11 +453,11 @@ def scoring_table_for_plans(gdf=None,name_col=None,area_col=None,type_col=None,e
         edited_gdf.rename(columns={type_col:'elinymp_luokka'},inplace=True)
         export_cols = ['elinymp_luokka', 'nimi', 'kuvaus', 'e', 'kxAla', 'lumo', 'lumo_sel', 'melu', 'melu_sel', 'hule', 'hule_sel', 'ilma', 'ilma_sel', 'pöly', 'pöly_sel', 'terv', 'terv_sel', 'wkt']
         #st.dataframe(edited_gdf[export_cols])
-            
         name_of_scoring = st.text_input('Nimeä tarkastelu jos haluat tallentaa sen',max_chars=20)
         saveit = st.form_submit_button('Talenna')
         if saveit and name_of_scoring is not None and len(name_of_scoring) > 2:
             file_name_for_save = f"ANA_{name_of_scoring}"
+            file_name_for_save = file_name_for_save.lower().replace(' ', '_').replace(',', '_')
             if utils.allas_csv_handler(upload_df=edited_gdf[export_cols],upload_filename=file_name_for_save):
                 st.success('Tallennettu!')
                     
