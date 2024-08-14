@@ -179,7 +179,17 @@ def get_osm_landuse(latlon,radius=250,tags = {'natural':True,'landuse':True},exc
     
     #round area
     filtered_gdf['pinta-ala'] = round(filtered_gdf['area'],0)
-    filtered_gdf.rename(columns={'name':'nimi','type':'luokka'},inplace=True)
+    
+    #rename
+    if 'name' in filtered_gdf.columns:
+        filtered_gdf.rename(columns={'name':'nimi'},inplace=True)
+    else:
+        filtered_gdf['nimi'] = None
+    if 'type' in filtered_gdf.columns:
+        filtered_gdf.rename(columns={'type':'luokka'},inplace=True)
+    else:
+        filtered_gdf['luokka'] = None
+    
     #cols
     columns = ['nimi', 'luokka', 'pinta-ala', 'geometry']
     existing_columns = [col for col in columns if col in filtered_gdf.columns]
