@@ -9,7 +9,8 @@ import utils
 def loc_scoring_table(gdf=None,source=None,name_col=None,area_col=None,type_col=None,r=250,classification_file=None):
 
     #make persistent index
-    gdf.reset_index(inplace=True)
+    if 'index' not in gdf.columns:
+        gdf.reset_index(inplace=True)
     gdf.rename(columns={'index':'orig_index'}, inplace=True)
     
     #get pre_calssification file
@@ -30,109 +31,96 @@ def loc_scoring_table(gdf=None,source=None,name_col=None,area_col=None,type_col=
 
     #df to edit
     df_for_edit = gdf.drop(columns='geometry')
-        
+    
+    #reset session_state df when toggle changed
+    def reset_df():
+        if "loc_df_updated" in st.session_state:
+            del st.session_state.loc_df_updated
+    
+    #naming
+    groupped = st.toggle(label='Arvioi ryhmiteltynä', on_change=reset_df, key='group_toggle')
+    if groupped:
+        df_for_edit = df_for_edit.groupby(by=type_col, group_keys=True).sum().reset_index()
+    if name_col not in df_for_edit.columns:
+        for ind, row in df_for_edit.iterrows():
+            if groupped:
+                default_name = f"kohteet: {df_for_edit.at[ind, type_col]}"
+            else:
+                default_name = f"{df_for_edit.at[ind, 'orig_index']}"
+            df_for_edit.at[ind, name_col] = default_name
+            
     with st.form('loc_assesment_form'):
-        s1,s2 = st.columns([1,2])
-        with s1.container(height=300):
-            st.markdown('**Pääluokitus**')
-            
-            #dict for default values
-            osm_dict = {
-                "grass":'avonurmi',
-                "scrub":'niitty',
-                "grassland":'avonurmi',
-                "wetland":'niitty',
-                "wood":'metsä_nuori',
-                "forest":'metsä_vanha',
-                "bare_rock":"kalliot"
-                }
-            hsy_dict = {
-                "Muu avoin matala kasvillisuus":"avonurmi",
-                "puusto, 2 m - 10 m":"metsä_nuori",
-                "puusto, 10 m - 15 m":"metsä_nuori",
-                "puusto, 15 m - 20 m":"metsä_vanha",
-                "Puusto yli 20 m":"metsä_vanha"
-                }
-            
-            #add random names if not in data
-            if name_col not in df_for_edit.columns:
-                random_names = ['Puutiaispuistikko','Perhosniitty','Taskupuisto','Hiilinielumetsä']
-                for ind, row in df_for_edit.iterrows():
-                    df_for_edit.at[ind, name_col] = random.choice(random_names)
-                    
-            grouped_df = df_for_edit.groupby(by=type_col, group_keys=True).sum().reset_index()
-            key = 0
-            selections = {}                        
-            index_values = range(len(grouped_df))
-            grouped_df.insert(0, 'index', index_values)            
-                
-            selections = {}
-            for type_area in grouped_df[type_col].unique():
-                key += 1
-                selectbox_label = type_area
-                # Determine default index for the selectbox
-                try:
-                    default_dict = osm_dict if source == "OSM" else hsy_dict
-                    default_index = elist.index(default_dict.get(type_area, elist[0]))
-                except ValueError:
-                    default_index = 0
+        
+        #dict for default values
+        osm_dict = {
+            "grass":'avonurmi',
+            "scrub":'niitty',
+            "grassland":'avonurmi',
+            "wetland":'niitty',
+            "wood":'metsä_nuori',
+            "forest":'metsä_vanha',
+            "bare_rock":"kalliot"
+            }
+        hsy_dict = {
+            "Muu avoin matala kasvillisuus":"avonurmi",
+            "puusto, 2 m - 10 m":"metsä_nuori",
+            "puusto, 10 m - 15 m":"metsä_nuori",
+            "puusto, 15 m - 20 m":"metsä_vanha",
+            "Puusto yli 20 m":"metsä_vanha"
+            }
+        
+        # Update df_for_edit based on default dict/selections and transfer data from df_cls
+        for ind, row in df_for_edit.iterrows():
+            original_type_area = row[type_col]
+            default_dict = osm_dict if source == "OSM" else hsy_dict
+            selected = default_dict.get(original_type_area)
+            if selected:
+                df_for_edit.at[ind, type_col] = selected  # Update type_col with the selected value
 
-                # Use the default index in the selectbox
-                selected_option = st.selectbox(selectbox_label, options=elist, index=default_index, key=f"{type_area}")
-                selections[type_area] = selected_option
-
-            # Update df_for_edit based on user selections and transfer data from df_cls
-            for ind, row in df_for_edit.iterrows():
-                original_type_area = row[type_col]
-                selected = selections.get(original_type_area)
-                if selected:
-                    df_for_edit.at[ind, type_col] = selected  # Update type_col with the selected value
-
-                    # Transfer related data from df_cls to df_for_edit
-                    for e in ecols:
-                        if e not in df_for_edit.columns:
-                            df_for_edit[e] = pd.NA  # Initialize the column if it doesn't exist
-                        kx = df_cls.loc[df_cls[df_cls.columns[0]] == selected, e]
-                        if not kx.empty:
-                            kx_value = kx.iloc[0]
-                            df_for_edit.at[ind, e] = kx_value
-                            
-            df_for_editor = df_for_edit.copy()
-                
+                # update data from df_cls to df_for_edit
+                for e in ecols:
+                    if e not in df_for_edit.columns:
+                        df_for_edit[e] = pd.NA  # Initialize the column if it doesn't exist
+                    kx = df_cls.loc[df_cls[df_cls.columns[0]] == selected, e]
+                    if not kx.empty:
+                        kx_value = kx.iloc[0]
+                        df_for_edit.at[ind, e] = kx_value
+                        
+        df_for_editor = df_for_edit.copy()
         cols_for_editor = [name_col, type_col, area_col] + ecols + ["orig_index"]
         
         #add df to session_state if first run
-        if "loc_df_updated" not in st.session_state:
+        if "loc_df_updated" not in st.session_state: 
             st.session_state.loc_df_updated = df_for_editor
             
-        #arv.taulukko
-        with s2.container(height=300):
-            st.markdown('**Arviointitaulukko**')
-            #use updated df from session state
-            df_for_editor = st.session_state.loc_df_updated
-            edited_df = st.data_editor(
-                            df_for_editor[cols_for_editor],
-                            column_config={
-                                                type_col: st.column_config.SelectboxColumn(
-                                                    "Elinympäristöluokka",
-                                                    help="Valitse sopivin tuplaklikkaamalla",
-                                                    width="medium",
-                                                    options=elist,
-                                                    required=True,
-                                                ),
-                                                'area': None,
-                                                'orig_index': None
-                                            },
-                            hide_index=True,
-                            use_container_width=True
-                        )
-            
+        #table
+        st.markdown('**Arviointitaulukko**')
+        #use updated df from session state
+        df_for_editor = st.session_state.loc_df_updated
+        edited_df = st.data_editor(
+                        df_for_editor[cols_for_editor],
+                        column_config={
+                                        type_col: st.column_config.SelectboxColumn(
+                                            "Elinympäristöluokka",
+                                            help="Valitse ja vahvista enterillä",
+                                            width="medium",
+                                            options=elist,
+                                            required=True,
+                                        ),
+                                        'area': None,
+                                        'orig_index': None
+                                        },
+                        hide_index=True,
+                        use_container_width=True
+                    )
+        
         update_df = st.form_submit_button('Päivitä graafit')
-        if update_df:
-            st.session_state.loc_df_updated = edited_df
+        
+    if update_df:
+        st.session_state.loc_df_updated = edited_df
 
     #plotit
-    def plot_editor(edited_df,gdf):
+    def plot_editor(edited_df):
         
         #prepare for calc
         for col in num_columns:
@@ -156,54 +144,33 @@ def loc_scoring_table(gdf=None,source=None,name_col=None,area_col=None,type_col=
             
         # graafit
         col1,col2 = st.columns([2,1])
-        metodi = st.radio('Tarkastele',['Ryhmiteltynä graafina','Yksittäin kartalla'],horizontal=True)
-        if metodi == 'Ryhmiteltynä graafina':
-            with col1.container():
-                #sun
-                def sun_plot(df,path,values,color,hover):
-                    fig = px.sunburst(df, path=path,
-                                    values=values,
-                                    color=color, hover_data=hover,
-                                    color_continuous_scale='Greens',#'YlGn',
-                                    labels={color:'Arvo'},
-                                    #color_continuous_midpoint=np.average(df[color], weights=df[values]),
-                                    height=400
-                                    )
-                    fig.update_layout(
-                        coloraxis_colorbar=dict(
-                            title='Arvo',
-                            tickvals=[df[color].min(),df[color].max()],
-                            ticktext=['matala','korkea']
-                        )
+        with col1.container():
+            #sun
+            def sun_plot(df,path,values,color,hover):
+                fig = px.sunburst(df, path=path,
+                                values=values,
+                                color=color, hover_data=hover,
+                                color_continuous_scale='Greens',#'YlGn',
+                                labels={color:'Arvo'},
+                                #color_continuous_midpoint=np.average(df[color], weights=df[values]),
+                                height=400
+                                )
+                fig.update_layout(
+                    coloraxis_colorbar=dict(
+                        title='Arvo',
+                        tickvals=[df[color].min(),df[color].max()],
+                        ticktext=['matala','korkea']
                     )
-                    return fig
-                
-                # sun plot
-                path_cols = ['landuse',type_col]
-                value_col = area_col  # sectors
-                color_col = 'kxAla'
-                sun_fig = sun_plot(df=edited_df_plot, path=path_cols, values=value_col, color=color_col, hover=None)
-                st.plotly_chart(sun_fig, use_container_width=True, config = {'displayModeBar': False})
-                
-        else:
-            with col1.container():
-                #merge to gdf for map plot
-                edited_merged = gdf.merge(edited_df_plot, on='orig_index')
-                edited_merged.rename(columns={f'{name_col}_y':name_col,
-                                            f'{type_col}_y':type_col,
-                                            f'{area_col}_y':area_col},
-                                                inplace=True
-                                            )
-                
-                keep_cols = [name_col, type_col, area_col,'kxAla','geometry'] + ecols
-                color_col = 'kxAla'
-                edited_on_map = utils.plot_landuse(edited_merged[keep_cols],title=None,
-                                                    hover_name=type_col,
-                                                    hover_data=name_col,
-                                                    col=color_col,
-                                                    zoom=15,
-                                                    )
-                st.plotly_chart(edited_on_map, use_container_width=True, config = {'displayModeBar': False})
+                )
+                return fig
+            
+            # sun plot
+            path_cols = ['landuse',type_col]
+            value_col = area_col  # sectors
+            color_col = 'kxAla'
+            sun_fig = sun_plot(df=edited_df_plot, path=path_cols, values=value_col, color=color_col, hover=None)
+            st.plotly_chart(sun_fig, use_container_width=True, config = {'displayModeBar': False})
+            
                         
         #..and for col2..
         with col2.container():
@@ -237,7 +204,7 @@ def loc_scoring_table(gdf=None,source=None,name_col=None,area_col=None,type_col=
         return edited_df
 
     #plot the editor
-    edited_df_for_save = plot_editor(st.session_state.loc_df_updated,gdf)
+    edited_df_for_save = plot_editor(st.session_state.loc_df_updated)
 
     return edited_df_for_save
 

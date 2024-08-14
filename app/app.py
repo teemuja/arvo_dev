@@ -5,7 +5,7 @@ st.set_page_config(page_title="ARVO demot", layout="wide")
 st.sidebar.image('https://figbc.fi/media/arvo_logo.png')
 st.sidebar.header("A R V O demot",divider='green')
 st.sidebar.markdown("T&K-demot alueviherkertoimen kehitykseen [ARVO](https://figbc.fi/arvo-viherrakenteen-arviointi-ja-vahvistaminen-kaupunkien-maankayton-suunnittelussa)-hankkeessa.")
-
+st.sidebar.caption('Työversio beta 1.3')
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
     with st.sidebar.empty():

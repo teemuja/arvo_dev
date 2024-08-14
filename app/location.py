@@ -13,11 +13,18 @@ loc_text = """
 """
 st.markdown(loc_text)
 
+#reset session_states df when query changed
+def reset_session_state():
+    if "loc_df_updated" in st.session_state:
+        del st.session_state.loc_df_updated
+    if "group_toggle" in st.session_state:
+        st.session_state.group_toggle = False
+            
 gdf = None
 r = 250
 s1,s2 = st.columns([1,2])
-add = s1.text_input('Kohdeosoite')
-sorsa = s2.radio('Datalähde',['HSY','OSM','oma'],horizontal=True)
+add = s1.text_input('Kohdeosoite', on_change=reset_session_state)
+sorsa = s2.radio('Datalähde',['HSY','OSM','oma'],horizontal=True, on_change=reset_session_state)
 
 try:
     latlon = utils.getlatlon(add)
@@ -26,11 +33,6 @@ except:
     st.stop()
     
 with st.expander('Elinympäristöt datassa',expanded=True):
-    
-    #reset session_state df when min area changed
-    def reset_session_state():
-        if "loc_df_updated" in st.session_state:
-            del st.session_state.loc_df_updated
             
     if latlon:
         minarea = st.slider('Min. pinta-ala elinympäristölle (m2)',0,1000,200,100, on_change=reset_session_state)
@@ -57,7 +59,7 @@ with st.expander('Elinympäristöt datassa',expanded=True):
                     gdf = gdf[gdf[area_col] >= minarea]
                     bar_osm = utils.plot_area_bars(gdf,x=area_col,y=type_col,color=type_col,color_map=None,title='Elinympäristötyypit datassa')
                     st.plotly_chart(bar_osm, use_container_width=True, config = {'displayModeBar': False})
-                    map_osm = utils.plot_landuse(gdf,title=name,col=type_col,zoom=15)
+                    map_osm = utils.plot_landuse(gdf,title=name,col=type_col,name_col=name_col,zoom=15)
                     st.plotly_chart(map_osm, use_container_width=True, config = {'displayModeBar': False})
                     
                 else:
@@ -73,8 +75,8 @@ with st.expander('Elinympäristöt datassa',expanded=True):
             try:
                 gdf = utils.get_hsy_maanpeite(latlon=latlon,radius=r)
                 if gdf is not None and len(gdf) > 1: 
-                    
-                    name_col = "nimi"
+                    gdf.reset_index(inplace=True)
+                    name_col = "index"
                     area_col = "p_ala_m2"
                     type_col = "kuvaus"
                     title = f"Elinympäristöt: {add}"
@@ -88,7 +90,7 @@ with st.expander('Elinympäristöt datassa',expanded=True):
                     gdf = gdf[gdf[area_col] >= minarea]
                     bar_hsy = utils.plot_area_bars(gdf,x='p_ala_m2',y='kuvaus',color='kuvaus',color_map=colors_hsy)
                     st.plotly_chart(bar_hsy, use_container_width=True, config = {'displayModeBar': False})
-                    map_hsy = utils.plot_landuse(gdf,title,col=type_col,color_map=colors_hsy,zoom=15)
+                    map_hsy = utils.plot_landuse(gdf,title,col=type_col,name_col=name_col,color_map=colors_hsy,zoom=15)
                     st.plotly_chart(map_hsy, use_container_width=True, config = {'displayModeBar': False})
                     #st.write(gdf.columns.tolist())
                     #st.stop()
