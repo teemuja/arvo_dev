@@ -412,4 +412,10 @@ def allas_csv_handler(folder_name="app_data", download_csv=None, upload_df=None,
     
     else:
         raise ValueError("Missing data")
-    
+
+@st.cache_data()
+def allas(filepath):
+    allas_url = st.secrets['allas']['allas_url']
+    r = requests.get(f"{allas_url}/{filepath}", stream=True)
+    data = io.BytesIO(r.content)
+    return data

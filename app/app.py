@@ -20,16 +20,8 @@ with st.container():
         st.session_state.logged_in = False
         with st.empty():
             utils.check_password()
-        
-        #image from allas
-        import requests
-        import io
-        @st.cache_data()
-        def allas_get(filepath):
-            r = requests.get(filepath, stream=True)
-            data = io.BytesIO(r.content)
-            return data
-        st.image(allas_get("https://a3s.fi/swift/v1/AUTH_19865241c6944749b4a9f63633e85127/arvodev/app_data/logot.png"))
+        #logos from allas
+        st.image(utils.allas(f"arvodev/app_data/logot.png"))
         
 
 home_page = st.Page("home.py", title="Miksi demot?", default=True)
