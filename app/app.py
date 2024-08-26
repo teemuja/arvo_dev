@@ -20,19 +20,17 @@ with st.container():
         st.session_state.logged_in = False
         with st.empty():
             utils.check_password()
-        #spons logos
-        aalto = "https://figbc.fi/media/aalto-yliopisto-logo-2024.png"
-        espoo = "https://figbc.fi/media/espoo-logo-2024.png"
-        figbc = "https://figbc.fi/media/green-building-council-finland-logo-valkoisilla-reunoilla.png"
-        hel = "https://figbc.fi/media/helsinki-logo-2024.jpg"
-        vantaa = "https://figbc.fi/media/vantaa-logo-2024.png"
-
-        s1,s2,s3,s4,s5,s6 = st.columns(6)
-        s1.image(aalto)
-        s2.image(espoo)
-        s3.image(figbc)
-        s4.image(hel)
-        s5.image(vantaa)
+        
+        #image from allas
+        import requests
+        import io
+        @st.cache_data()
+        def allas_get(filepath):
+            r = requests.get(filepath, stream=True)
+            data = io.BytesIO(r.content)
+            return data
+        st.image(allas_get("https://a3s.fi/swift/v1/AUTH_19865241c6944749b4a9f63633e85127/arvodev/app_data/logot.png"))
+        
 
 home_page = st.Page("home.py", title="Miksi demot?", default=True)
 feedback_page = st.Page("feedback.py", title="Kehitysideat")
