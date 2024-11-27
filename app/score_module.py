@@ -1,8 +1,10 @@
 import streamlit as st
 import pandas as pd
 import geopandas as gpd
+import numpy as np
 from shapely import wkt
 import random
+from typing import Dict, List
 import plotly.express as px
 import utils
 
@@ -504,4 +506,236 @@ def ana_score_plot(gdf_ana,name_col,area_col,type_col):
         totAla = tarkasteluala
         """
         st.caption(eselite)
-            
+
+
+def generate_interactive_editor(df1: pd.DataFrame, df2: pd.DataFrame) -> pd.DataFrame:
+    """
+    Generates an interactive data editor for zoning data with dynamic dropdowns
+    based on PÄÄLUOKKA and KAUPUNKILUONTOTYYPPI selections.
+    
+    Args:
+        df1: DataFrame with zoning areas (contains 'mk_luokka' column).
+        df2: DataFrame with classification data (contains PÄÄLUOKKA, KAUPUNKILUONTOTYYPPI, etc.).
+    
+    Returns:
+        pd.DataFrame: The edited DataFrame after changes.
+    """
+    # Replace non-serializable values in the input DataFrame
+    df1 = df1.replace([np.inf, -np.inf], None).fillna("")
+    df2 = df2.replace([np.inf, -np.inf], None).fillna("")
+
+    # Initialize session state for storing the current selection
+    if 'user_selections' not in st.session_state:
+        st.session_state.user_selections = {}
+
+    # Create mappings for dropdowns
+    paluokka_types = df2['PÄÄLUOKKA'].unique().tolist()
+    kaupunki_mapping = df2.groupby('PÄÄLUOKKA')['KAUPUNKILUONTOTYYPPI'].apply(lambda x: x.dropna().unique().tolist()).to_dict()
+    peruspiste_mapping = df2.groupby(['PÄÄLUOKKA', 'KAUPUNKILUONTOTYYPPI'])['PERUSPISTE'].apply(lambda x: x.dropna().unique().tolist()).to_dict()
+    laatuind_mapping = {
+        (paaluokka, kaupunki): {
+            f'LAATUIND{i}': df2[(df2['PÄÄLUOKKA'] == paaluokka) & (df2['KAUPUNKILUONTOTYYPPI'] == kaupunki)][f'LAATUIND{i}'].dropna().unique().tolist()
+            for i in range(1, 9)
+        }
+        for paaluokka in paluokka_types
+        for kaupunki in kaupunki_mapping.get(paaluokka, [])
+    }
+
+    # Prepare the combined DataFrame
+    combined_df = df1.copy()
+    new_columns = ['PÄÄLUOKKA', 'KAUPUNKILUONTOTYYPPI', 'PERUSPISTE'] + [f'LAATUIND{i}' for i in range(1, 9)]
+    for col in new_columns:
+        if col not in combined_df.columns:
+            combined_df[col] = None
+
+    # Define editor key for session state
+    editor_key = "zoning_editor"
+
+    # Prepare column configuration
+    column_config = {
+        'mk_luokka': st.column_config.TextColumn('mk_luokka', disabled=True),
+        'PÄÄLUOKKA': st.column_config.SelectboxColumn('PÄÄLUOKKA', options=paluokka_types, required=True),
+        'KAUPUNKILUONTOTYYPPI': st.column_config.SelectboxColumn('KAUPUNKILUONTOTYYPPI', options=[], required=True),
+        'PERUSPISTE': st.column_config.SelectboxColumn('PERUSPISTE', options=[])
+    }
+
+    for i in range(1, 9):
+        col_name = f'LAATUIND{i}'
+        column_config[col_name] = st.column_config.SelectboxColumn(col_name, options=[])
+
+    # Helper function to update options in session state
+    def prepare_options_for_index(idx, edited_df):
+        row = edited_df.loc[idx]
+        paaluokka = row.get('PÄÄLUOKKA')
+        kaupunki = row.get('KAUPUNKILUONTOTYYPPI')
+        
+        if paaluokka:
+            st.session_state.user_selections[idx] = {
+                'KAUPUNKILUONTOTYYPPI': kaupunki_mapping.get(paaluokka, []),
+                'PERUSPISTE': peruspiste_mapping.get((paaluokka, kaupunki), []),
+                **laatuind_mapping.get((paaluokka, kaupunki), {})
+            }
+
+    # Populate options before rendering the editor
+    for idx, row in combined_df.iterrows():
+        prepare_options_for_index(idx, combined_df)
+
+    def update_user_selections(edited_df):
+        """
+        Update the user_selections dictionary when PÄÄLUOKKA or KAUPUNKILUONTOTYYPPI changes.
+        """
+        # Ensure edited_df is a DataFrame
+        if isinstance(edited_df, pd.DataFrame):
+            for idx, row in edited_df.iterrows():
+                paaluokka = row.get('PÄÄLUOKKA')
+                kaupunki = row.get('KAUPUNKILUONTOTYYPPI')
+                if paaluokka and kaupunki:
+                    st.session_state.user_selections[idx] = {
+                        'PÄÄLUOKKA': paaluokka,
+                        'KAUPUNKILUONTOTYYPPI': kaupunki,
+                        'PERUSPISTE': peruspiste_mapping.get((paaluokka, kaupunki), []),
+                        **laatuind_mapping.get((paaluokka, kaupunki), {})
+                    }
+                
+    # Create the data editor
+    edited_df = st.data_editor(
+        combined_df,
+        column_config=column_config,
+        key=editor_key,
+        on_change=lambda: update_user_selections(st.session_state[editor_key])
+    )
+
+    return edited_df
+
+#v2
+def editor(df1: pd.DataFrame, df2: pd.DataFrame) -> pd.DataFrame:
+    # Replace non-serializable values in the input DataFrame
+    df1 = df1.replace([np.inf, -np.inf], None).fillna("")
+    df2 = df2.replace([np.inf, -np.inf], None).fillna("")
+
+    # Initialize session state for storing the current selection
+    if 'user_selections' not in st.session_state:
+        st.session_state.user_selections = {}
+
+    # Create mappings for dropdowns
+    paluokka_types = df2['PÄÄLUOKKA'].unique().tolist()
+    kaupunki_mapping = df2.groupby('PÄÄLUOKKA')['KAUPUNKILUONTOTYYPPI'].apply(lambda x: x.dropna().unique().tolist()).to_dict()
+    peruspiste_mapping = df2.groupby(['PÄÄLUOKKA', 'KAUPUNKILUONTOTYYPPI'])['PERUSPISTE'].apply(lambda x: x.dropna().unique().tolist()).to_dict()
+    laatuind_mapping = {
+        (paaluokka, kaupunki): {
+            f'LAATUIND{i}': df2[(df2['PÄÄLUOKKA'] == paaluokka) & (df2['KAUPUNKILUONTOTYYPPI'] == kaupunki)][f'LAATUIND{i}'].dropna().unique().tolist()
+            for i in range(1, 9)
+        }
+        for paaluokka in paluokka_types
+        for kaupunki in kaupunki_mapping.get(paaluokka, [])
+    }
+
+    # Prepare the combined DataFrame
+    combined_df = df1.copy()
+    new_columns = ['PÄÄLUOKKA', 'KAUPUNKILUONTOTYYPPI', 'PERUSPISTE'] + [f'LAATUIND{i}' for i in range(1, 9)]
+    for col in new_columns:
+        if col not in combined_df.columns:
+            combined_df[col] = None
+
+    # Define editor key for session state
+    editor_key = "zoning_editor"
+
+    # Prepare column configuration
+    column_config = {
+        'mk_luokka': st.column_config.TextColumn('mk_luokka', disabled=True),
+        'PÄÄLUOKKA': st.column_config.SelectboxColumn('PÄÄLUOKKA', options=paluokka_types, required=True),
+        'KAUPUNKILUONTOTYYPPI': st.column_config.SelectboxColumn('KAUPUNKILUONTOTYYPPI', options=[], required=True),
+        'PERUSPISTE': st.column_config.SelectboxColumn('PERUSPISTE', options=[])
+    }
+
+    for i in range(1, 9):
+        col_name = f'LAATUIND{i}'
+        column_config[col_name] = st.column_config.SelectboxColumn(col_name, options=[])
+
+    # Helper function to update options in session state
+    def prepare_options_for_index(idx, edited_df):
+        row = edited_df.loc[idx]
+        paaluokka = row.get('PÄÄLUOKKA')
+        kaupunki = row.get('KAUPUNKILUONTOTYYPPI')
+        
+        if paaluokka:
+            st.session_state.user_selections[idx] = {
+                'KAUPUNKILUONTOTYYPPI': kaupunki_mapping.get(paaluokka, []),
+                'PERUSPISTE': peruspiste_mapping.get((paaluokka, kaupunki), []),
+                **laatuind_mapping.get((paaluokka, kaupunki), {})
+            }
+
+    # Populate options before rendering the editor
+    for idx, row in combined_df.iterrows():
+        prepare_options_for_index(idx, combined_df)
+    
+    def update_user_selections(edited_df):
+        """
+        Update the user_selections dictionary when PÄÄLUOKKA or KAUPUNKILUONTOTYYPPI changes.
+        """
+        # Ensure edited_df is a DataFrame
+        if isinstance(edited_df, pd.DataFrame):
+            for idx, row in edited_df.iterrows():
+                paaluokka = row.get('PÄÄLUOKKA')
+                kaupunki = row.get('KAUPUNKILUONTOTYYPPI')
+                if paaluokka and kaupunki:
+                    st.session_state.user_selections[idx] = {
+                        'PÄÄLUOKKA': paaluokka,
+                        'KAUPUNKILUONTOTYYPPI': kaupunki,
+                        'PERUSPISTE': peruspiste_mapping.get((paaluokka, kaupunki), []),
+                        **laatuind_mapping.get((paaluokka, kaupunki), {})
+                    }
+                    
+    def get_options_for_column(idx, col_name):
+        """
+        Return the options for a specific column based on the row index.
+        """
+        if col_name == 'KAUPUNKILUONTOTYYPPI':
+            paaluokka = st.session_state.user_selections.get(idx, {}).get('PÄÄLUOKKA', '')
+            return kaupunki_mapping.get(paaluokka, [])
+        elif col_name == 'PERUSPISTE':
+            return st.session_state.user_selections.get(idx, {}).get('PERUSPISTE', [])
+        elif col_name.startswith('LAATUIND'):
+            return st.session_state.user_selections.get(idx, {}).get(col_name, [])
+        return []
+
+    # Modify column configuration to call the get_options_for_column function
+    column_config = {
+        'mk_luokka': st.column_config.TextColumn(
+            'mk_luokka',
+            disabled=True
+        ),
+        'PÄÄLUOKKA': st.column_config.SelectboxColumn(
+            'PÄÄLUOKKA',
+            options=paluokka_types,
+            required=True
+        ),
+        'KAUPUNKILUONTOTYYPPI': st.column_config.SelectboxColumn(
+            'KAUPUNKILUONTOTYYPPI',
+            options=lambda idx: get_options_for_column(idx, 'KAUPUNKILUONTOTYYPPI'),
+            required=True
+        ),
+        'PERUSPISTE': st.column_config.SelectboxColumn(
+            'PERUSPISTE',
+            options=lambda idx: get_options_for_column(idx, 'PERUSPISTE')
+        )
+    }
+
+    # Add LAATUIND columns to the configuration
+    for i in range(1, 9):
+        col_name = f'LAATUIND{i}'
+        column_config[col_name] = st.column_config.SelectboxColumn(
+            col_name,
+            options=lambda idx, col=col_name: get_options_for_column(idx, col)
+        )
+
+    # Create the data editor and update user selections
+    edited_df = st.data_editor(
+        combined_df,
+        column_config=column_config,
+        key=editor_key
+    )
+
+    update_user_selections(edited_df)
+
+    return edited_df

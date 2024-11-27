@@ -22,7 +22,6 @@ with st.container():
             utils.check_password()
         #logos from allas
         st.image(utils.allas(f"arvodev/app_data/logot.png"))
-        
 
 home_page = st.Page("home.py", title="Miksi demot?", default=True)
 feedback_page = st.Page("feedback.py", title="Kehitysideat")
@@ -30,12 +29,13 @@ feedback_page = st.Page("feedback.py", title="Kehitysideat")
 location = st.Page("location.py", title="Kohdealueen analyysi")
 plans = st.Page("plans.py", title="Suunnitelman analyysi", )
 saved = st.Page("saved.py", title="Tallennetut analyysit", )
+logic = st.Page("logic.py", title="Arviointilogiikan kehitys", )
 
 if st.session_state.logged_in:
     menu = st.navigation(
         {
             "Info": [home_page,feedback_page],
-            "Demot": [location,plans,saved]
+            "Demot": [location,logic]
         }
     )
     menu.run()

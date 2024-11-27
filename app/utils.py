@@ -419,3 +419,52 @@ def allas(filepath):
     r = requests.get(f"{allas_url}/{filepath}", stream=True)
     data = io.BytesIO(r.content)
     return data
+
+@st.cache_data()
+def get_zip_from_allas(file_name, bucket_name='arvodev'):
+    session = boto3.session.Session()
+    client = session.client('s3',
+                            endpoint_url=st.secrets['allas']['allas_host_url'],
+                            aws_access_key_id=st.secrets['allas']['allas_access_key'],
+                            aws_secret_access_key=st.secrets['allas']['allas_secret_key']
+                            )
+    
+    obj = client.get_object(Bucket=bucket_name, Key=file_name)
+    zip_content = obj['Body'].read()
+    # Return the content as a file-like object
+    return io.BytesIO(zip_content)
+
+
+def sun_burst_plot(main_classes,sec_class_name):
+    
+    # Define custom colors
+    custom_colors = {
+        main_classes[0]: 'green',
+        main_classes[1]: 'olivedrab',
+        main_classes[2]: 'seagreen',
+    }
+    # Add a fallback color for subclasses using Greens color scale
+    fallback_color = 'lightgreen'
+
+    # Flatten all classes and assign colors
+    all_classes = main_classes + [sec_class_name]
+    colors = [
+        custom_colors.get(cls, fallback_color) for cls in all_classes
+    ]
+
+    # Define sunburst data
+    labels = main_classes + [sec_class_name]
+    parents = ["", "", ""] + [main_classes[0], main_classes[0], main_classes[1], main_classes[2]]
+
+    # Create the sunburst plot
+    fig = go.Figure(go.Sunburst(
+        labels=labels,
+        parents=parents,
+        marker=dict(colors=colors),
+    ))
+
+    # Update layout and show
+    fig.update_layout(
+        margin=dict(t=0, l=0, r=0, b=0)
+    )
+    return fig
