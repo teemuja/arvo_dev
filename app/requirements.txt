@@ -2,6 +2,7 @@ streamlit
 pandas
 shapely
 numpy
+scikit-learn
 geopandas
 geocoder
 requests
@@ -10,3 +11,6 @@ matplotlib
 boto3
 s3fs
 osmnx
+seaborn
+folium
+branca
