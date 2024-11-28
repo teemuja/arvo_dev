@@ -26,7 +26,7 @@ with st.container():
 home_page = st.Page("home.py", title="Miksi demot?", default=True)
 feedback_page = st.Page("feedback.py", title="Kehitysideat")
 
-location = st.Page("location.py", title="Kohdealueen analyysi")
+location = st.Page("location.py", title="Aineistotestit")
 plans = st.Page("plans.py", title="Suunnitelman analyysi", )
 saved = st.Page("saved.py", title="Tallennetut analyysit", )
 logic = st.Page("logic.py", title="Arviointilogiikan kehitys", )
