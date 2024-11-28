@@ -24,7 +24,7 @@ gdf = None
 r = 250
 s1,s2 = st.columns([1,2])
 add = s1.text_input('Kohdeosoite', on_change=reset_session_state)
-sorsa = s2.radio('Datalähde',['HSY','OSM','oma'],horizontal=True, on_change=reset_session_state)
+sorsa = s2.radio('Datalähde',['HSY','OSM'],horizontal=True, on_change=reset_session_state)
 
 try:
     latlon = utils.getlatlon(add)

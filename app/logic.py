@@ -62,14 +62,20 @@ for tab, class_name in zip(tabs, main_classes):
                     total_score *= slider_value
                 
                 #arvo calc
-                if area_value > 0:
-                    if malli == "K1":
+                if malli == "K1":
+                    if area_value > 0:
                         tot_value = area_value * 1.3 #total area 30% larger than evaluated areas together
                         class_scores[sec_class]['Arvo'] = round((tot_value + (total_score * area_value)) / tot_value,1)
                     else:
+                        class_scores[sec_class]['Arvo'] = 0
+                elif malli == "K2":
+                    if area_value > 0:
                         class_scores[sec_class]['Arvo'] = round((total_score * area_value) / area_value,2)
+                    else:
+                        class_scores[sec_class]['Arvo'] = 0
                 else:
-                    class_scores[sec_class]['Arvo'] = 0
+                    class_scores[sec_class]['Arvo'] = round(random.uniform(0.1,0.9),2)
+                
 
         # Save scores for the main class
         scores[class_name] = class_scores
@@ -91,16 +97,17 @@ scores_df = pd.DataFrame(score_rows)
 
 def sun_plot(df,path,values,color,hover):
     custom_colors = {
-        main_classes[0]: 'green',
+        main_classes[0]: 'darkgreen', 
         main_classes[1]: 'olivedrab',
         main_classes[2]: 'seagreen'
         }
     fig = px.sunburst(df, path=path,
                     values=values,
                     title="Jakautuuko osa-alueiden kontribuutio arvoon uskottavasti?",
-                    hover_data=hover,
                     color=main_class_name,
                     color_discrete_map=custom_colors,
+                    hover_name=hover,
+                    template='ggplot2',
                     height=400
                     )
     fig.update_layout(
@@ -119,15 +126,16 @@ with col1:
     sun_fig = sun_plot(df=scores_df,
                     path=[main_class_name,sec_class_name],
                     values='Arvo', color='Osa-alue',
-                    hover='Arvo'
+                    hover=main_class_name
                     )
     st.plotly_chart(sun_fig) #sun_burst_plot(main_classes,sec_class_name))
 
 with col2:
     #sum results
-    
     st.markdown("###")
     st.markdown("###")
-    arvo = round(scores_df['Arvo'].mean(),2)
+    scored_areas_df = scores_df[scores_df['Arvo'] != 0]
+    arvo = round(scored_areas_df['Arvo'].mean(),2)
     st.metric("Alueviherkerroin",value=arvo)
+    st.caption("Arvioitujen osa-alueiden keskiarvona")
     
