@@ -8,10 +8,15 @@ import utils
 #st.image("https://cdn.loppi.fi/uploads/sites/2/2023/04/vanhakoski.jpg?strip=all&lossy=1&ssl=1",use_column_width=True)
 st.header("Arviontilogiikan kehitys")
 hover_text = """
-            **K1:** kaikki alueet + osa-alue * laatukerroin / kokonaispinta-ala    
-            **K2:** osa-alue * laatukerroin / kokonaispinta-ala
+            **LUMO-kaava:** Luontotyypin peruspiste x ekologinen tila x luontotyypin pinta-ala = hm2  
+            [hm2 = Habitaattineliömetrit=ekotehokas pinta-ala]   
+            [ekologinen tila = laatupiste ko. luontotyypin indikaattoripisteiden keskiarvona]   
+              
+            **Alueviherkerroin** = Habitaattineliömetrit / arvioidun alueen kokonaisala  
+              
+            **ESP-kaava:** tbd..
             """
-malli = st.radio("Laskentakaava",['K1','K2'], help=hover_text,horizontal=True)
+malli = st.radio("Laskentakaava",['LUMO','ESP'], help=hover_text,horizontal=True)
 
 @st.cache_data()
 def load_table():
@@ -29,7 +34,7 @@ main_classes = df[main_class_name].dropna().unique().tolist()
 
 
 # Define variable types
-var_types = ['Peruspiste', 'Lumolaatu', 'ESP_ilmasto', 'ESP_hyvinvointi', 'ESP_terveys']
+var_types = ['Laatu1', 'Laatu2', 'Laatu3']
 
 # Get unique main classes
 main_classes = df[main_class_name].dropna().unique().tolist()
@@ -53,27 +58,34 @@ for tab, class_name in zip(tabs, main_classes):
         # Create sliders for each secondary class and variable type
         for sec_class in sec_classes:
             with st.expander(sec_class,expanded=False):
-                area_value = st.slider("Pinta-ala", 0, 10000, 0, step=1000, key=f"{sec_class}_area")
+                element_area = st.slider("Pinta-ala", 0, 10000, 0, step=1000, key=f"{sec_class}_area")
+                base_score = st.slider("Peruspiste", 0.0, 1.0, step=0.1, key=f"{sec_class}_base")
+                st.markdown("---")
                 class_scores[sec_class] = {}
                 total_score = 1
+                value_score = 0
                 for var in var_types:
                     slider_value = st.slider(f"{var}", 0.0, 1.0, step=0.1, key=f"{sec_class}_{var}")
                     class_scores[sec_class][var] = slider_value
-                    total_score *= slider_value
+                    value_score += slider_value
                 
                 #arvo calc
-                if malli == "K1":
-                    if area_value > 0:
-                        tot_value = area_value * 1.3 #total area 30% larger than evaluated areas together
-                        class_scores[sec_class]['Arvo'] = round((tot_value + (total_score * area_value)) / tot_value,1)
+                if malli == "LUMO":
+                    if element_area > 0:
+                        class_scores[sec_class]['area'] = element_area
+                        class_scores[sec_class]['hm2'] = base_score * value_score/len(var_types) * element_area
                     else:
-                        class_scores[sec_class]['Arvo'] = 0
-                elif malli == "K2":
-                    if area_value > 0:
-                        class_scores[sec_class]['Arvo'] = round((total_score * area_value) / area_value,2)
+                        class_scores[sec_class]['area'] = 0
+                        class_scores[sec_class]['hm2'] = 0
+                elif malli == "ESP":
+                    if element_area > 0:
+                        class_scores[sec_class]['area'] = 1
+                        class_scores[sec_class]['hm2'] = 1
                     else:
+                        class_scores[sec_class]['area'] = 0
                         class_scores[sec_class]['Arvo'] = 0
                 else:
+                    class_scores[sec_class]['area'] = round(random.uniform(1000,5000),1000)
                     class_scores[sec_class]['Arvo'] = round(random.uniform(0.1,0.9),2)
                 
 
@@ -89,7 +101,8 @@ for main_class, sec_scores in scores.items():
                 main_class_name: main_class,
                 sec_class_name: sec_class,
                 'Osa-alue': var,
-                'Arvo': score
+                'hm2': score,
+                'm2': sec_scores[sec_class].get('area', 0)
             })
 scores_df = pd.DataFrame(score_rows)
 
@@ -112,30 +125,30 @@ def sun_plot(df,path,values,color,hover):
                     )
     fig.update_layout(
         coloraxis_colorbar=dict(
-            title='Arvo',
+            title='hm2',
             tickvals=[df[color].min(),df[color].max()],
             ticktext=['matala','korkea']
         )
     )
     return fig
 
+with st.container(border=True):
+    col1,col2 = st.columns([2,1])
+    with col1:
+        sun_fig = sun_plot(df=scores_df,
+                        path=[main_class_name,sec_class_name],
+                        values='hm2', color='Osa-alue',
+                        hover=main_class_name
+                        )
+        st.plotly_chart(sun_fig) #sun_burst_plot(main_classes,sec_class_name))
 
-col1,col2 = st.columns([2,1])
-
-with col1:
-    sun_fig = sun_plot(df=scores_df,
-                    path=[main_class_name,sec_class_name],
-                    values='Arvo', color='Osa-alue',
-                    hover=main_class_name
-                    )
-    st.plotly_chart(sun_fig) #sun_burst_plot(main_classes,sec_class_name))
-
-with col2:
-    #sum results
-    st.markdown("###")
-    st.markdown("###")
-    scored_areas_df = scores_df[scores_df['Arvo'] != 0]
-    arvo = round(scored_areas_df['Arvo'].mean(),2)
-    st.metric("Alueviherkerroin",value=arvo)
-    st.caption("Arvioitujen osa-alueiden keskiarvona")
+    with col2:
+        #sum results
+        st.markdown("###")
+        st.markdown("###")
+        tot_factor = st.slider('Kokonaisalalle kerroin (x kertaa arvioidut alat)',1.0,2.0,1.5,step=0.1)
+        total_area = scores_df['m2'].sum() * tot_factor
+        arvo = round(scores_df['hm2'].sum() / total_area,2)
+        st.metric("Alueviherkerroin",value=arvo)
+        st.caption("..")
     
