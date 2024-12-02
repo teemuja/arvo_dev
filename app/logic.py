@@ -12,9 +12,9 @@ hover_text = """
             [hm2 = Habitaattineliömetrit=ekotehokas pinta-ala]   
             [ekologinen tila = laatupiste ko. luontotyypin indikaattoripisteiden keskiarvona]   
               
-            **Alueviherkerroin** = Habitaattineliömetrit / arvioidun alueen kokonaisala  
+            **LUMO-arvo** = Habitaattineliömetrit / arvioidun alueen kokonaisala  
               
-            **ESP-kaava:** tbd..
+            **ESP-arvo:** = ekologinen tila x luontotyypin pinta-ala / arvioidun alueen kokonaisala
             """
 malli = st.radio("Laskentakaava",['LUMO','ESP'], help=hover_text,horizontal=True)
 
@@ -34,7 +34,10 @@ main_classes = df[main_class_name].dropna().unique().tolist()
 
 
 # Define variable types
-var_types = ['Laatu1', 'Laatu2', 'Laatu3']
+if malli == "LUMO":
+    var_types = ['Laatu1', 'Laatu2', 'Laatu3']
+else:
+    var_types = ['ESP1', 'ESP2', 'ESP3']
 
 # Get unique main classes
 main_classes = df[main_class_name].dropna().unique().tolist()
@@ -59,7 +62,8 @@ for tab, class_name in zip(tabs, main_classes):
         for sec_class in sec_classes:
             with st.expander(sec_class,expanded=False):
                 element_area = st.slider("Pinta-ala", 0, 10000, 0, step=1000, key=f"{sec_class}_area")
-                base_score = st.slider("Peruspiste", 0.0, 1.0, step=0.1, key=f"{sec_class}_base")
+                if malli == "LUMO":
+                    base_score = st.slider("Peruspiste", 0.0, 1.0, step=0.1, key=f"{sec_class}_base")
                 st.markdown("---")
                 class_scores[sec_class] = {}
                 total_score = 1
@@ -77,13 +81,15 @@ for tab, class_name in zip(tabs, main_classes):
                     else:
                         class_scores[sec_class]['area'] = 0
                         class_scores[sec_class]['hm2'] = 0
+                        
                 elif malli == "ESP":
                     if element_area > 0:
-                        class_scores[sec_class]['area'] = 1
-                        class_scores[sec_class]['hm2'] = 1
+                        class_scores[sec_class]['area'] = element_area
+                        class_scores[sec_class]['hm2'] = value_score/len(var_types) * element_area
                     else:
                         class_scores[sec_class]['area'] = 0
                         class_scores[sec_class]['Arvo'] = 0
+                        
                 else:
                     class_scores[sec_class]['area'] = round(random.uniform(1000,5000),1000)
                     class_scores[sec_class]['Arvo'] = round(random.uniform(0.1,0.9),2)
@@ -100,15 +106,15 @@ for main_class, sec_scores in scores.items():
             score_rows.append({
                 main_class_name: main_class,
                 sec_class_name: sec_class,
-                'Osa-alue': var,
-                'hm2': score,
-                'm2': sec_scores[sec_class].get('area', 0)
+                'indikaattori': var,
+                'ekotehokas_ala': round(score,0),
+                'kokonaisala': sec_scores[sec_class].get('area', 0)
             })
 scores_df = pd.DataFrame(score_rows)
 
 
 
-def sun_plot(df,path,values,color,hover):
+def sun_plot(df,path,values,hover):
     custom_colors = {
         main_classes[0]: 'darkgreen', 
         main_classes[1]: 'olivedrab',
@@ -123,21 +129,17 @@ def sun_plot(df,path,values,color,hover):
                     template='ggplot2',
                     height=400
                     )
-    fig.update_layout(
-        coloraxis_colorbar=dict(
-            title='hm2',
-            tickvals=[df[color].min(),df[color].max()],
-            ticktext=['matala','korkea']
-        )
-    )
+    
     return fig
+
+result_df = scores_df[scores_df['indikaattori'] == "hm2"].drop(columns='indikaattori')
 
 with st.container(border=True):
     col1,col2 = st.columns([2,1])
     with col1:
-        sun_fig = sun_plot(df=scores_df,
+        sun_fig = sun_plot(df=result_df,
                         path=[main_class_name,sec_class_name],
-                        values='hm2', color='Osa-alue',
+                        values='ekotehokas_ala',
                         hover=main_class_name
                         )
         st.plotly_chart(sun_fig) #sun_burst_plot(main_classes,sec_class_name))
@@ -146,9 +148,14 @@ with st.container(border=True):
         #sum results
         st.markdown("###")
         st.markdown("###")
-        tot_factor = st.slider('Kokonaisalalle kerroin (x kertaa arvioidut alat)',1.0,2.0,1.5,step=0.1)
-        total_area = scores_df['m2'].sum() * tot_factor
-        arvo = round(scores_df['hm2'].sum() / total_area,2)
-        st.metric("Alueviherkerroin",value=arvo)
+        tot_factor = st.slider('Kokonaisalalle kerroin (x kertaa arvioidut alat)',1.0,2.0,1.3,step=0.1)
+        total_area = result_df['kokonaisala'].sum() * tot_factor
+        arvo = round(result_df['ekotehokas_ala'].sum() / total_area,2)
+        if malli == "LUMO":
+            st.metric("LUMO-arvo",value=arvo)
+        else:
+            st.metric("ESP-arvo",value=arvo)
         st.caption("..")
-    
+
+with st.expander('Taulukko'):
+    st.data_editor(result_df.reset_index(drop=True),use_container_width=True)
