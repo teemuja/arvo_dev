@@ -147,8 +147,18 @@ lumo_scores_df = gen_score_df(all_lumo_scores)
 esp_scores_df = gen_score_df(all_esp_scores)
 
 suns = st.container(border=True)
-tot_factor = st.slider('Kokonaisalalle kerroin (Tarkastelualueen laajuus = x kertaa arvioidut alat)',1.0,2.0,1.3,step=0.1, key=f"tot_ala")
+
+s1,s2 = st.columns(2)
+tot_factor = s1.slider('Kokonaisalalle kerroin (Tarkastelualueen laajuus = x kertaa arvioidut alat)',1.0,2.0,1.3,step=0.1, key=f"tot_ala")
 total_area = int(lumo_scores_df['kokonaisala'].sum() * tot_factor)
+non_arvo_area = total_area - lumo_scores_df['kokonaisala'].sum()
+# jotta ei-viheralueeksi arvioidun alueen saa piirakkaan mukaan 
+# tulee sille antaa joku kerroin, jolla siitä tulee "habitaattihehtaari" =  alueen kontribuutio hha
+non_arvo_factor = s2.slider('Ei-arvioitujen alueiden laatukerroinpotentiaali)',0.0,1.0,0.1,step=0.1, key=f"non_arvo_factor")
+if non_arvo_factor > 0.0:                     #['arvioimaton alue', 'arvioimaton alue', 'ekotehokas_ala','kokonaisala']
+    non_arvo_area_hha = non_arvo_area * non_arvo_factor
+    lumo_scores_df.loc[len(lumo_scores_df)] = ['arvioimaton alue', 'arvioimaton alue', round(non_arvo_area_hha,0), round(non_arvo_area,0)]
+    esp_scores_df.loc[len(esp_scores_df)] = ['arvioimaton alue', 'arvioimaton alue', round(non_arvo_area_hha,0), round(non_arvo_area,0)]
 
 def score_plot(df,path,type):
     custom_colors = {
