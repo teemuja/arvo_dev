@@ -149,18 +149,21 @@ esp_scores_df = gen_score_df(all_esp_scores)
 suns = st.container(border=True)
 
 s1,s2 = st.columns(2)
-tot_factor = s1.slider('Kokonaisalalle kerroin (Tarkastelualueen laajuus = x kertaa arvioidut alat)',1.0,2.0,1.3,step=0.1, key=f"tot_ala")
+tot_factor = s1.slider('Kokonaisalalle kerroin (x kertaa arvioidut alat)',1.0,2.0,1.3,step=0.1, key=f"tot_ala")
 total_area = int(lumo_scores_df['kokonaisala'].sum() * tot_factor)
 non_arvo_area = total_area - lumo_scores_df['kokonaisala'].sum()
 # jotta ei-viheralueeksi arvioidun alueen saa piirakkaan mukaan 
 # tulee sille antaa joku kerroin, jolla siitä tulee "habitaattihehtaari" =  alueen kontribuutio hha
-non_arvo_factor = s2.slider('Ei-arvioitujen alueiden laatukerroinpotentiaali)',0.0,1.0,0.1,step=0.1, key=f"non_arvo_factor")
+non_arvo_factor = s2.slider('Ei-arvioitujen alueiden laatukerroinpotentiaali',0.0,1.0,0.1,step=0.1, key=f"non_arvo_factor")
 if non_arvo_factor > 0.0:                     #['arvioimaton alue', 'arvioimaton alue', 'ekotehokas_ala','kokonaisala']
-    non_arvo_area_hha = non_arvo_area * non_arvo_factor
-    lumo_scores_df.loc[len(lumo_scores_df)] = ['arvioimaton alue', 'arvioimaton alue', round(non_arvo_area_hha,0), round(non_arvo_area,0)]
-    esp_scores_df.loc[len(esp_scores_df)] = ['arvioimaton alue', 'arvioimaton alue', round(non_arvo_area_hha,0), round(non_arvo_area,0)]
 
-def score_plot(df,path,type):
+    non_arvo_area_hha = non_arvo_area * non_arvo_factor
+    lumo_scores_df.loc[len(lumo_scores_df)] = ['arvioimaton alue', 'arvioimaton alue', round(non_arvo_area_hha,2), round(non_arvo_area,2)]
+    esp_scores_df.loc[len(esp_scores_df)] = ['arvioimaton alue', 'arvioimaton alue', round(non_arvo_area_hha,2), round(non_arvo_area,2)]
+
+
+
+def score_plot_old(df,path,type):
     custom_colors = {
         main_classes[0]: 'darkgreen', 
         main_classes[1]: 'olivedrab',
@@ -176,6 +179,44 @@ def score_plot(df,path,type):
                     height=400
                     )
     return sun_fig
+
+def score_plot(df, path, type):
+
+    # # Calculate the "potential" for each row
+    df['potential'] = df['kokonaisala'] - df['ekotehokas_ala']
+    
+    # Prepare the data by adding "Potential" as a separate category
+    potential_rows = df.copy()
+    potential_rows['ekotehokas_ala'] = potential_rows['potential']
+    potential_rows[main_class_name] = 'Potentiaali'
+    
+    # Combine the original and potential rows
+    combined_df = pd.concat([df, potential_rows], ignore_index=True)
+    
+    #Custom colors, including potential
+    custom_colors = {
+        main_classes[0]: 'darkgreen',
+        main_classes[1]: 'olivedrab',
+        main_classes[2]: 'seagreen',
+        'Potentiaali': 'lightgrey'  # Color for the potential area
+    }
+    
+    # Create the sunburst plot
+    sun_fig = px.sunburst(
+        combined_df,
+        path=path,
+        values='ekotehokas_ala',  # Both actual and potential values are included
+        title=type,
+        color=main_class_name,
+        color_discrete_map=custom_colors,
+        hover_name='ekotehokas_ala',
+        template='ggplot2',
+        height=400
+    )
+    
+    return sun_fig
+
+
 
 with suns:
     col1,col2 = st.columns(2)
