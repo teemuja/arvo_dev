@@ -20,7 +20,7 @@ hover_text = """
 
 @st.cache_data()
 def load_table():
-    df = utils.allas_csv_handler(download_csv="kaupunkiluontotyypit.csv")
+    df = utils.allas_csv_handler(download_csv="rytyt.csv")
     return df
 df = load_table()
 
@@ -45,7 +45,7 @@ def scoring_sliders(class_name, sec_classes):
             def score_sliders(score_name, class_name, sec_class, var_types, element_area):
                 scores = {}
                 base_score = st.slider(
-                    f"{score_name} peruspiste", 
+                    f"{score_name} laatupiste", 
                     0.0, 1.0, step=0.1, 
                     key=f"{score_name}_{class_name}_{sec_class}_base"
                 )
@@ -53,14 +53,14 @@ def scoring_sliders(class_name, sec_classes):
                 scores[sec_class] = {}
                 value_score = 0
                 
-                if st.toggle('Käytä laatukertoimia', key=f"{score_name}_{class_name}_{sec_class}_vars"):
-                    for var in var_types:
-                        slider_value = st.slider(
-                            f"{var}", 0.0, 1.0, step=0.1, 
-                            key=f"{score_name}_{class_name}_{sec_class}_{var}"
-                        )
-                        scores[sec_class][var] = slider_value
-                        value_score += slider_value
+                # if st.toggle('Käytä laatukertoimia', key=f"{score_name}_{class_name}_{sec_class}_vars"):
+                #     for var in var_types:
+                #         slider_value = st.slider(
+                #             f"{var}", 0.0, 1.0, step=0.1, 
+                #             key=f"{score_name}_{class_name}_{sec_class}_{var}"
+                #         )
+                #         scores[sec_class][var] = slider_value
+                #         value_score += slider_value
                 
                 # Calculate scores based on area and sliders
                 if element_area > 0:
@@ -104,26 +104,12 @@ def scoring_sliders(class_name, sec_classes):
 
     return class_scores_lumo, class_scores_esp
 
+# Initialize session state for persistent scores
+if 'all_lumo_scores' not in st.session_state:
+    st.session_state['all_lumo_scores'] = {}
 
-
-# Generate dynamic tabs
-tabs = st.tabs(main_classes)
-all_lumo_scores = {}
-all_esp_scores = {}
-    
-# Generate similar content dynamically for each tab for both lumo and esp
-for tab, class_name in zip(tabs, main_classes):
-    with tab:
-        
-        with st.container(border=True):
-            st.markdown(f'**{class_name}**')
-            sec_df = df[df[main_class_name] == class_name]
-            sec_classes = sec_df[sec_class_name].unique().tolist()
-            
-            lumo_scores, esp_scores = scoring_sliders(class_name,sec_classes)
-            
-            all_lumo_scores[class_name] = lumo_scores
-            all_esp_scores[class_name] = esp_scores
+if 'all_esp_scores' not in st.session_state:
+    st.session_state['all_esp_scores'] = {}
 
 #func to gen score df
 def gen_score_df(scores):
@@ -139,12 +125,68 @@ def gen_score_df(scores):
                     'kokonaisala': sec_scores[sec_class].get('area', 0)
                 })
     scores_df = pd.DataFrame(score_rows)
-    scores_df_out = scores_df[scores_df['indikaattori'] == "hm2"].drop(columns='indikaattori')
-    return scores_df_out
+    if len(scores_df) > 0:
+        scores_df_out = scores_df[scores_df['indikaattori'] == "hm2"].drop(columns='indikaattori')
+        return scores_df_out
+    else:
+        return None
+
+# Generate dynamic tabs
+tabs = st.tabs(main_classes)
+all_lumo_scores = {}
+all_esp_scores = {}
+    
+# Generate similar content dynamically for each tab for both lumo and esp
+for tab, class_name in zip(tabs, main_classes):
+    with tab:
+        with st.form(key=class_name, clear_on_submit=False): ##st.container(border=True):
+            st.markdown(f'**{class_name}**')
+            sec_df = df[df[main_class_name] == class_name]
+            sec_classes = sec_df[sec_class_name].unique().tolist()
+            
+            lumo_scores, esp_scores = scoring_sliders(class_name,sec_classes)
+            
+            #all_lumo_scores[class_name] = lumo_scores
+            #all_esp_scores[class_name] = esp_scores
+
+            add = st.form_submit_button('Lisää alueet laskentaan')
+        
+        if add:
+            # Update session state incrementally for LUMO
+            if class_name not in st.session_state['all_lumo_scores']:
+                st.session_state['all_lumo_scores'][class_name] = {}
+            for sec_class, scores in lumo_scores.items():
+                if sec_class not in st.session_state['all_lumo_scores'][class_name]:
+                    st.session_state['all_lumo_scores'][class_name][sec_class] = scores
+                else:
+                    # Accumulate scores
+                    for var, value in scores.items():
+                        if isinstance(value, (int, float)):
+                            st.session_state['all_lumo_scores'][class_name][sec_class][var] = (
+                                st.session_state['all_lumo_scores'][class_name][sec_class].get(var, 0) + value
+                            )
+            
+            # Update session state incrementally for ESP
+            if class_name not in st.session_state['all_esp_scores']:
+                st.session_state['all_esp_scores'][class_name] = {}
+            for sec_class, scores in esp_scores.items():
+                if sec_class not in st.session_state['all_esp_scores'][class_name]:
+                    st.session_state['all_esp_scores'][class_name][sec_class] = scores
+                else:
+                    # Accumulate scores
+                    for var, value in scores.items():
+                        if isinstance(value, (int, float)):
+                            st.session_state['all_esp_scores'][class_name][sec_class][var] = (
+                                st.session_state['all_esp_scores'][class_name][sec_class].get(var, 0) + value
+                            )
+
 
 # Generate a DataFrame with the scores FOR both lumo and esp
-lumo_scores_df = gen_score_df(all_lumo_scores)
-esp_scores_df = gen_score_df(all_esp_scores)
+if st.session_state['all_lumo_scores'] or st.session_state['all_lumo_scores']:
+    lumo_scores_df = gen_score_df(st.session_state['all_lumo_scores'])
+    esp_scores_df = gen_score_df(st.session_state['all_esp_scores'])
+else:
+    st.stop()
 
 suns = st.container(border=True)
 
@@ -159,8 +201,7 @@ if non_arvo_factor > 0.0:                     #['arvioimaton alue', 'arvioimaton
 
     non_arvo_area_hha = non_arvo_area * non_arvo_factor
     lumo_scores_df.loc[len(lumo_scores_df)] = ['arvioimaton alue', 'arvioimaton alue', round(non_arvo_area_hha,2), round(non_arvo_area,2)]
-    esp_scores_df.loc[len(esp_scores_df)] = ['arvioimaton alue', 'arvioimaton alue', round(non_arvo_area_hha,2), round(non_arvo_area,2)]
-
+    #esp_scores_df.loc[len(esp_scores_df)] = ['arvioimaton alue', 'arvioimaton alue', round(non_arvo_area_hha,2), round(non_arvo_area,2)]
 
 
 def score_plot_old(df,path,type):
