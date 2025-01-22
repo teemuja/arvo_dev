@@ -20,7 +20,7 @@ hover_text = """
 
 @st.cache_data()
 def load_table():
-    df = utils.allas_csv_handler(download_csv="kaupunkiluontotyypit.csv")
+    df = utils.allas_csv_handler(download_csv="rytyt.csv")
     return df
 df = load_table()
 
@@ -104,26 +104,12 @@ def scoring_sliders(class_name, sec_classes):
 
     return class_scores_lumo, class_scores_esp
 
+# Initialize session state for persistent scores
+if 'all_lumo_scores' not in st.session_state:
+    st.session_state['all_lumo_scores'] = {}
 
-
-# Generate dynamic tabs
-tabs = st.tabs(main_classes)
-all_lumo_scores = {}
-all_esp_scores = {}
-    
-# Generate similar content dynamically for each tab for both lumo and esp
-for tab, class_name in zip(tabs, main_classes):
-    with tab:
-        
-        with st.container(border=True):
-            st.markdown(f'**{class_name}**')
-            sec_df = df[df[main_class_name] == class_name]
-            sec_classes = sec_df[sec_class_name].unique().tolist()
-            
-            lumo_scores, esp_scores = scoring_sliders(class_name,sec_classes)
-            
-            all_lumo_scores[class_name] = lumo_scores
-            all_esp_scores[class_name] = esp_scores
+if 'all_esp_scores' not in st.session_state:
+    st.session_state['all_esp_scores'] = {}
 
 #func to gen score df
 def gen_score_df(scores):
@@ -142,9 +128,35 @@ def gen_score_df(scores):
     scores_df_out = scores_df[scores_df['indikaattori'] == "hm2"].drop(columns='indikaattori')
     return scores_df_out
 
+# Generate dynamic tabs
+tabs = st.tabs(main_classes)
+all_lumo_scores = {}
+all_esp_scores = {}
+    
+# Generate similar content dynamically for each tab for both lumo and esp
+for tab, class_name in zip(tabs, main_classes):
+    with tab:
+        with st.form(key=class_name, clear_on_submit=False): ##st.container(border=True):
+            st.markdown(f'**{class_name}**')
+            sec_df = df[df[main_class_name] == class_name]
+            sec_classes = sec_df[sec_class_name].unique().tolist()
+            
+            lumo_scores, esp_scores = scoring_sliders(class_name,sec_classes)
+            
+            #all_lumo_scores[class_name] = lumo_scores
+            #all_esp_scores[class_name] = esp_scores
+
+            add = st.form_submit_button('Lisää alueet laskentaan')
+        
+        if add:
+            # Update session state with scores
+            st.session_state['all_lumo_scores'][class_name] = lumo_scores
+            st.session_state['all_esp_scores'][class_name] = esp_scores
+
+
 # Generate a DataFrame with the scores FOR both lumo and esp
-lumo_scores_df = gen_score_df(all_lumo_scores)
-esp_scores_df = gen_score_df(all_esp_scores)
+lumo_scores_df = gen_score_df(st.session_state['all_lumo_scores'])
+esp_scores_df = gen_score_df(st.session_state['all_esp_scores'])
 
 suns = st.container(border=True)
 

@@ -371,7 +371,7 @@ def feedback_editor(feedback_file = "data/feedback.csv"):
     return modified_df
 
 # allas s3 conn
-def allas_csv_handler(folder_name="app_data", download_csv=None, upload_df=None, upload_filename=None):
+def allas_csv_handler(folder_name="appdata", download_csv=None, upload_df=None, upload_filename=None):
     bucket_name='arvodev'
     session = boto3.session.Session()
     client = session.client('s3',
