@@ -139,7 +139,7 @@ all_esp_scores = {}
 # Generate similar content dynamically for each tab for both lumo and esp
 for tab, class_name in zip(tabs, main_classes):
     with tab:
-        with st.form(key=class_name, clear_on_submit=False): ##st.container(border=True):
+        with st.form(key=class_name, clear_on_submit=True): ##st.container(border=True):
             st.markdown(f'**{class_name}**')
             sec_df = df[df[main_class_name] == class_name]
             sec_classes = sec_df[sec_class_name].unique().tolist()
@@ -204,23 +204,6 @@ if non_arvo_factor > 0.0:                     #['arvioimaton alue', 'arvioimaton
     #esp_scores_df.loc[len(esp_scores_df)] = ['arvioimaton alue', 'arvioimaton alue', round(non_arvo_area_hha,2), round(non_arvo_area,2)]
 
 
-def score_plot_old(df,path,type):
-    custom_colors = {
-        main_classes[0]: 'darkgreen', 
-        main_classes[1]: 'olivedrab',
-        main_classes[2]: 'seagreen'
-        }
-    sun_fig = px.sunburst(df, path=path,
-                    values='ekotehokas_ala',
-                    title=type,
-                    color=main_class_name,
-                    color_discrete_map=custom_colors,
-                    hover_name='ekotehokas_ala',
-                    template='ggplot2',
-                    height=400
-                    )
-    return sun_fig
-
 def score_plot(df, path, type):
 
     # # Calculate the "potential" for each row
@@ -273,7 +256,15 @@ with suns:
         st.metric(f"ESP-arvo",value=esp_arvo)
 
 with st.expander('Arvointitaulukko',expanded=False):
-    lumo_df = lumo_scores_df.rename(columns={'ekotehokas_ala':'hha2'}).reset_index().fillna(0)
-    esp_df = esp_scores_df.rename(columns={'ekotehokas_ala':'ESP_ala'}).drop(columns='kokonaisala').reset_index().fillna(0)
-    my_scores = pd.concat([lumo_df,esp_df])[[main_class_name,sec_class_name,'kokonaisala','hha2','ESP_ala']].fillna(0)
+    my_scores = lumo_scores_df.rename(columns={'ekotehokas_ala':'hha2'}) \
+    .reset_index().fillna(0) \
+    .merge(esp_scores_df.rename(columns={'ekotehokas_ala':'ESP_ala'}).drop(columns='kokonaisala').reset_index().fillna(0), 
+           on=[main_class_name, sec_class_name], 
+           how='outer') \
+    [[main_class_name, sec_class_name, 'kokonaisala', 'hha2', 'ESP_ala']] \
+    .fillna(0)
     st.data_editor(my_scores)
+    if st.button("Resetoi"):
+        del st.session_state['all_lumo_scores']
+        del st.session_state['all_esp_scores']
+        st.rerun()
