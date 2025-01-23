@@ -123,7 +123,7 @@ if gdf is not None and not gdf.empty:
         scoring_df = score_module.loc_scoring_table(gdf=gdf,
                             source=sorsa,
                             name_col=name_col,area_col=area_col,type_col=type_col,
-                            classification_file="classification.csv")
+                            classification_file="classification_landcover.csv")
         #download
         csv_to_save = scoring_df.to_csv().encode('utf-8')
         file_name = f"ana_{add}.csv"
