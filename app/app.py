@@ -2,12 +2,14 @@ import streamlit as st
 import utils
 
 st.set_page_config(page_title="ARVO demot", layout="wide", initial_sidebar_state='expanded')
-st.markdown("""
-<style>
-button[title="View fullscreen"]{
-        visibility: hidden;}
-</style>
-""", unsafe_allow_html=True)
+# st.markdown("""
+#     <style>
+#     button {
+#         background-color: #4CAF50; /* Green */
+#         color: white;
+#     }
+#     </style>
+#     """, unsafe_allow_html=True)
 
 #title
 st.sidebar.image('https://figbc.fi/media/arvo_logo.png')
@@ -29,6 +31,7 @@ location = st.Page("location.py", title="Aineistotestit")
 plans = st.Page("plans.py", title="Suunnitelman analyysi", )
 saved = st.Page("saved.py", title="Tallennetut analyysit", )
 logic = st.Page("logic.py", title="Arviointilogiikan kehitys", )
+#prediction = st.Page("predictor.py", title="Suunnitelman potentiaaliarviointi", )
 
 if st.session_state.logged_in:
     menu = st.navigation(
