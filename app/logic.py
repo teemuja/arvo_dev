@@ -20,21 +20,22 @@ hover_text = """
 
 @st.cache_data()
 def load_table():
-    df = utils.allas_csv_handler(download_csv="rytyt.csv")
+    df = utils.allas_csv_handler(download_csv="RYTYT_27012025.csv")
     return df
 df = load_table()
 
 #get main_classes from table
 main_class_name = 'PÄÄLUOKKA'
-sec_class_name = 'KAUPUNKILUONTOTYYPPI'
+sec_class_name = 'LUONTOTYYPPI'
 main_classes = df[main_class_name].dropna().unique().tolist()
+potential_dict = df.set_index(df[sec_class_name])['MONIMUOTOISUUSPOTENTIAALI'].to_dict()
 
 # Define variable types
-lumo_var_types = ['Laatu1', 'Laatu2', 'Laatu3']
+lumo_var_types = ['ETM1', 'ETM2', 'ETM3']
 esp_var_types = ['ESP1', 'ESP2', 'ESP3']
 
 #scoring func
-def scoring_sliders(class_name, sec_classes):
+def scoring_sliders(class_name, sec_classes, potential_dict=None):
     # Initialize dictionaries to store scores for all secondary classes
     class_scores_lumo = {}
     class_scores_esp = {}
@@ -44,16 +45,20 @@ def scoring_sliders(class_name, sec_classes):
             # Slider generation function
             def score_sliders(score_name, class_name, sec_class, var_types, element_area):
                 scores = {}
+                if potential_dict is not None:
+                    defaul_value = potential_dict.get(sec_class,0.0)
+                else:
+                    defaul_value = 0.0
                 base_score = st.slider(
-                    f"{score_name} laatupiste", 
-                    0.0, 1.0, step=0.1, 
+                    f"{score_name} potentiaali", 
+                    0.0, 1.0, value=defaul_value, step=0.1, 
                     key=f"{score_name}_{class_name}_{sec_class}_base"
                 )
                 
                 scores[sec_class] = {}
                 value_score = 0
                 
-                # if st.toggle('Käytä laatukertoimia', key=f"{score_name}_{class_name}_{sec_class}_vars"):
+                # if st.toggle('Käytä ekologisen tilan laatukertoimia', key=f"{score_name}_{class_name}_{sec_class}_vars"):
                 #     for var in var_types:
                 #         slider_value = st.slider(
                 #             f"{var}", 0.0, 1.0, step=0.1, 
@@ -144,12 +149,12 @@ for tab, class_name in zip(tabs, main_classes):
             sec_df = df[df[main_class_name] == class_name]
             sec_classes = sec_df[sec_class_name].unique().tolist()
             
-            lumo_scores, esp_scores = scoring_sliders(class_name,sec_classes)
+            lumo_scores, esp_scores = scoring_sliders(class_name,sec_classes,potential_dict=potential_dict)
             
             #all_lumo_scores[class_name] = lumo_scores
             #all_esp_scores[class_name] = esp_scores
 
-            add = st.form_submit_button('Lisää alueet laskentaan')
+            add = st.form_submit_button('Lisää alueet laskentaan',type="primary")
         
         if add:
             # Update session state incrementally for LUMO
@@ -201,7 +206,7 @@ if non_arvo_factor > 0.0:                     #['arvioimaton alue', 'arvioimaton
 
     non_arvo_area_hha = non_arvo_area * non_arvo_factor
     lumo_scores_df.loc[len(lumo_scores_df)] = ['arvioimaton alue', 'arvioimaton alue', round(non_arvo_area_hha,2), round(non_arvo_area,2)]
-    #esp_scores_df.loc[len(esp_scores_df)] = ['arvioimaton alue', 'arvioimaton alue', round(non_arvo_area_hha,2), round(non_arvo_area,2)]
+    esp_scores_df.loc[len(esp_scores_df)] = ['arvioimaton alue', 'arvioimaton alue', round(non_arvo_area_hha,2), round(non_arvo_area,2)]
 
 
 def score_plot(df, path, type):
@@ -221,7 +226,7 @@ def score_plot(df, path, type):
     custom_colors = {
         main_classes[0]: 'darkgreen',
         main_classes[1]: 'olivedrab',
-        main_classes[2]: 'seagreen',
+        #main_classes[2]: 'seagreen',
         'Potentiaali': 'lightgrey'  # Color for the potential area
     }
     
