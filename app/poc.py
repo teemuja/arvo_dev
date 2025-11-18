@@ -4,7 +4,7 @@ import pandas as pd
 import plotly.express as px
 
 st.set_page_config(layout="wide")
-st.title("Laskentademo")
+st.header("Laskentademo", divider="green")
 
 
 # --- mapping dicts ----
@@ -14,7 +14,7 @@ e_moni_pot = {
 	"p_puisto":1.0, "s_ranta":1.0, "i_ranta":1.0, "uusniitty":1.0,
 	"pebi":1.0, "jyrkanne":1.0, "kosteikko":0.9, "ruderaatti":0.8,
 	"puutarha":0.7, "pensaikko":0.7, "a_puisto":0.6, "pelto":0.5,
-	"maavaraine":0.5, "katu":0.3, "integroitu":0.3, "vayla":0.5,
+	"maavarainen":0.5, "katu":0.3, "integroitu":0.3, "vayla":0.5,
 	"teollinen":0.1, "vesiallas":0.1
 }
 
@@ -24,7 +24,7 @@ hy_l_poten = {
 	"lahteikko":1.0, "p_puisto":0.95, "puutarha":0.85,
 	"itameri":0.8, "jarvi":0.8, "virtavesi":0.8, "suo":0.8,
 	"a_puisto":0.79, "uusniitty":0.75, "vesiallas":0.73,
-	"kosteikko":0.73, "maavaraine":0.55, "pelto":0.5,
+	"kosteikko":0.73, "maavarainen":0.55, "pelto":0.5,
 	"katu":0.5, "integroitu":0.35, "pensaikko":0.27,
 	"ruderaatti":0.25, "vayla":0.2, "teollinen":0.0
 }
@@ -34,7 +34,7 @@ pi_l_viile = {
 	"kallio":1.0, "suo":1.0, "lahteikko":1.0, "jarvi":1.0,
 	"vesiallas":0.7, "p_puisto":0.7, "kosteikko":0.7,
 	"s_ranta":0.7, "i_ranta":0.7, "virtavesi":0.7,
-	"maavaraine":0.7, "vayla":0.7, "pebi":0.7,
+	"maavarainen":0.7, "vayla":0.7, "pebi":0.7,
 	"puutarha":0.5, "pensaikko":0.5, "katu":0.5,
 	"ruderaatti":0.5, "a_puisto":0.3, "pelto":0.3,
 	"uusniitty":0.3, "teollinen":0.3, "integroitu":0.3,
@@ -45,7 +45,7 @@ hi_l_sitom = {
 	"a_puisto":0.4, "i_ranta":0.5, "integroitu":0.05, "itameri":0.7,
 	"jyrkanne":0.05, "jarvi":0.7, "kallio":0.9, "kangas":0.9,
 	"katu":0.15, "kosteikko":0.5, "lahteikko":0.6, "lehto":0.9,
-	"maavaraine":0.4, "metsa":0.9, "p_puisto":0.7, "pebi":0.4,
+	"maavarainen":0.4, "metsa":0.9, "p_puisto":0.7, "pebi":0.4,
 	"pelto":0.3, "pensaikko":0.55, "puutarha":0.3, "ruderaatti":0.35,
 	"s_ranta":0.6, "suo":0.9, "teollinen":0.1, "uusniitty":0.25,
 	"vayla":0.25, "vesiallas":0.0, "virtavesi":0.2
@@ -57,7 +57,7 @@ hu_l_halli = {
 	"i_ranta":0.85, "kallio":0.85, "s_ranta":0.85, "p_puisto":0.75,
 	"pensaikko":0.75, "vayla":0.75, "itameri":0.7, "vesiallas":0.7,
 	"katu":0.6, "pebi":0.55, "puutarha":0.55, "uusniitty":0.55,
-	"a_puisto":0.45, "maavaraine":0.45, "ruderaatti":0.45,
+	"a_puisto":0.45, "maavarainen":0.45, "ruderaatti":0.45,
 	"integroitu":0.35, "jyrkanne":0.35, "pelto":0.35, "teollinen":0.35
 }
 
@@ -105,6 +105,7 @@ manual = {
 	'pensaikko': 'Pensaikko',
 	'teollinen': 'Teollinen alue',
 	'katu': 'Liikennealue',
+	'pebi': 'Perinnebiotooppi',
 }
 selkokieli.update(manual)
 
@@ -147,6 +148,9 @@ for t in selected:
 		default_plv = pi_l_viile.get(t, 0.5)
 		default_hls = hi_l_sitom.get(t, 0.5)
 		default_hyp = hy_l_poten.get(t, 0.5)
+		# type categories
+		water_types = ("jarvi","virtavesi","lahteikko","itameri","vesiallas","s_ranta","i_ranta")
+		is_water = t in water_types
 
 		c1, c2, c3, c4 = st.columns([2,1,1,1])
 		# colors for small containers
@@ -161,31 +165,121 @@ for t in selected:
 		with c1:
 			with st.container(border=use_border):
 				st.markdown(f"<div style='background:{col_styles['area']};padding:8px;border-radius:6px'>Pinta-ala ({hr})</div>", unsafe_allow_html=True)
-				area = st.number_input(f"Pinta-ala ({hr}) [m2]", min_value=0.0, value=100.0, step=10.0, key=f"area_{t}")
+				area = st.number_input(
+					f"Pinta-ala ({hr}) [m2]",
+					min_value=0.0,
+					value=100.0,
+					step=10.0,
+					key=f"area_{t}",
+					help="Alueen pinta-ala neliömetreinä. Käytetään ekotehokas-arvon laskennassa ja normalisointiin."
+				)
 			with st.container(border=use_border):
 				st.markdown(f"<div style='background:{col_styles['area']};padding:8px;border-radius:6px'>Maa / lähde ({hr})</div>", unsafe_allow_html=True)
-				p_maalaji = st.selectbox(f"Maa/lahde ({hr})", options=sorted(list(hu_m_lapai.keys())), index=0, key=f"maalaji_{t}")
+				p_maalaji = st.selectbox(
+					f"Maa/lahde ({hr})",
+					options=sorted(list(hu_m_lapai.keys())),
+					index=0,
+					key=f"maalaji_{t}",
+					help="Maaperän tai lähteen tyyppi; vaikuttaa kosteuteen ja hallinnan arvoihin."
+				)
 		with c2:
 			with st.container(border=use_border):
-				p_latvus = st.slider(f"Latvus% ({hr})", 0.0, 100.0, 50.0, step=1.0, key=f"latvus_{t}")
-				p_twi = st.slider(f"TWI ({hr})", 0.0, 20.0, 5.0, step=0.1, key=f"twi_{t}")
+				# Dynamic latvus range: open parks (a_puisto) typically lower canopy, small/wooded parks (p_puisto) higher
+				if t == 'a_puisto':
+					_lat_min, _lat_max, _lat_def = 0.0, 50.0, 25.0
+				elif t == 'p_puisto':
+					_lat_min, _lat_max, _lat_def = 50.0, 100.0, 75.0
+				else:
+					_lat_min, _lat_max, _lat_def = 0.0, 100.0, 50.0
+				p_latvus = st.slider(
+					f"Latvus% ({hr})",
+					_lat_min,
+					_lat_max,
+					_lat_def,
+					step=1.0,
+					key=f"latvus_{t}",
+					help="Puuston latvusprosentti. Aluekohtainen vaihteluväli asetetaan luontotyypin mukaan (esim. avoimet puistot 0–50, puustoiset puistot 50–100)."
+				)
+				# TWI: not applicable for open water/shore types — disable in that case
+				if is_water:
+					# For water/shore types TWI isn't applicable. Use a disabled number_input
+					p_twi = 0.0
+					st.number_input(
+						f"TWI ({hr})",
+						value=0.0,
+						step=0.1,
+						key=f"twi_{t}",
+						help="TWI ei sovellu vesialueille; asetettu 0.",
+						disabled=True
+					)
+				else:
+					p_twi = st.slider(
+						f"TWI ({hr})",
+						0.0,
+						20.0,
+						5.0,
+						step=0.1,
+						key=f"twi_{t}",
+						help="Topographic Wetness Index (TWI). Vaikuttaa kosteusarvioon ja HU-arvoon. Kynnykset: <6 matala, 6–10 keski, >10 korkea."
+					)
 		with c3:
 			with st.container(border=use_border):
 				st.markdown(f"<div style='background:{col_styles['etila']};padding:8px;border-radius:6px'>Ekologinen tila ({hr})</div>", unsafe_allow_html=True)
-				e_tila = st.slider(f"Ekologinen tila (e_tila) ({hr})", 0.0, 1.0, float(default_emp), step=0.01, key=f"etila_{t}")
+				e_tila = st.slider(
+					f"Ekologinen tila (e_tila) ({hr})",
+					0.0,
+					1.0,
+					float(default_emp),
+					step=0.01,
+					key=f"etila_{t}",
+					help="Arvio ekologisesta tilasta välillä 0–1, jossa 1 on parhaassa mahdollisessa luonnontilassa; kerroin LUMO-laskennassa."
+				)
 			with st.container(border=use_border):
 				st.markdown(f"<div style='background:{col_styles['etila']};padding:8px;border-radius:6px'>Ranta ({hr})</div>", unsafe_allow_html=True)
-				p_ranta = st.checkbox(f"Ranta (p_ranta) ({hr})", value=False, key=f"ranta_{t}")
+				# If the luontotyyppi itself is a shoreline/water, mark ranta True by default
+				p_ranta_default = True if t in ("i_ranta","s_ranta","jarvi","itameri","virtavesi","vesiallas") else False
+				p_ranta = st.checkbox(
+					f"Ranta (p_ranta) ({hr})",
+					value=p_ranta_default,
+					key=f"ranta_{t}",
+					help="Onko alue rantavyöhykettä (meri tai sisävesi). Ranta-asetelma voi asettaa hyvinvointipotentiaalin korkealle."
+				)
 		with c4:
 			with st.container(border=use_border):
 				st.markdown(f"<div style='background:{col_styles['hy']};padding:8px;border-radius:6px'>Saavutettavuus ({hr})</div>", unsafe_allow_html=True)
-				hy_saavute = st.slider(f"Hyvä saavutettavuus ({hr})", 0.0, 1.0, 0.0, step=0.01, key=f"saav_{t}")
+				# Hyvinvoint-related defaults: use hy_l_poten as suggested defaults (clamped to 0..1)
+				hy_default = max(0.0, min(1.0, hy_l_poten.get(t, 0.0)))
+				hy_saavute = st.slider(
+					f"Hyvä saavutettavuus ({hr})",
+					0.0,
+					1.0,
+					hy_default,
+					step=0.01,
+					key=f"saav_{t}",
+					help="Arvio saavutettavuudesta (0–1). 1 = erinomainen saavutettavuus julkisilla ja jalankulkuyhteyksillä."
+				)
 			with st.container(border=use_border):
 				st.markdown(f"<div style='background:{col_styles['hy']};padding:8px;border-radius:6px'>Maisema ({hr})</div>", unsafe_allow_html=True)
-				hy_maisema = st.slider(f"Hyvä maisema ({hr})", 0.0, 1.0, 0.0, step=0.01, key=f"mai_{t}")
+				hy_maisema = st.slider(
+					f"Hyvä maisema ({hr})",
+					0.0,
+					1.0,
+					hy_default,
+					step=0.01,
+					key=f"mai_{t}",
+					help="Arvio maiseman visuaalisesta arvosta (0–1). Suurempi arvo tarkoittaa korkeampaa maisema-arvoa."
+				)
 			with st.container(border=use_border):
 				st.markdown(f"<div style='background:{col_styles['hy']};padding:8px;border-radius:6px'>Kohokohdat ({hr})</div>", unsafe_allow_html=True)
-				hy_kohokoh = st.slider(f"Hyvät kohokohdat ({hr})", 0.0, 1.0, 0.0, step=0.01, key=f"koh_{t}")
+				hy_kohokoh = st.slider(
+					f"Hyvät kohokohdat ({hr})",
+					0.0,
+					1.0,
+					hy_default,
+					step=0.01,
+					key=f"koh_{t}",
+					help="Arvio alueen erityispiirteistä ja nähtävyyksistä (0–1) jotka lisäävät hyvinvointiarvoa."
+				)
 
 	rows.append({
 		"luontotyyppi": t,
@@ -208,12 +302,31 @@ if df.empty:
 # sliders for total-area multiplier and non-evaluated-area factor
 col1, _ = st.columns(2)
 with col1:
-	# Allow the user to set the estimated total area (m2) for normalization
+
+	# ----- 
+	sum_components = int(df['kokonaisala'].sum())
+
+	# Initialize or adjust session state value
 	if 'area_input' not in st.session_state:
-		st.session_state.area_input = int(df['kokonaisala'].sum())
+		st.session_state.area_input = sum_components
+	else:
+		# Ensure the stored value doesn't go below current sum
+		st.session_state.area_input = max(st.session_state.area_input, sum_components)
 
 	st.markdown("---")
-	st.session_state.area_input = st.number_input('**Kohteen kokonaisala (m2)**', min_value=int(df['kokonaisala'].sum()), value=st.session_state.area_input, step=10)
+
+	area_input = st.number_input(
+		'**Kohteen kokonaisala (m2)**',
+		min_value=sum_components,
+		step=10,
+		key='area_input',
+		help="Arvioitu koko alueen pinta-ala neliömetreinä."
+	)
+
+	# Always show the sum of component areas as contextual caption.
+	st.caption(f"Osa-alueiden summa: {sum_components} m2")
+
+	# -----
 
 def calc_p_lat_arvo(p_lat):
 	if p_lat < 25:
@@ -303,7 +416,7 @@ if out_df.empty:
 	st.stop()
 
 # Use the provided total_area_input as the denominator for normalization
-total_area = st.session_state.area_input
+total_area = st.session_state.area_input if 'area_input' in st.session_state else int(out_df['kokonaisala'].sum())
 non_arvo_area = max(0, total_area - int(out_df['kokonaisala'].sum()))
 if non_arvo_area > 0:
 	# add a placeholder row for the non-evaluated area with zeroed coefficients
