@@ -209,8 +209,11 @@ if df.empty:
 col1, _ = st.columns(2)
 with col1:
 	# Allow the user to set the estimated total area (m2) for normalization
+	if 'area_input' not in st.session_state:
+		st.session_state.area_input = int(df['kokonaisala'].sum())
+
 	st.markdown("---")
-	total_area_input = st.number_input('**Kohteen kokonaisala (m2)**', min_value=int(df['kokonaisala'].sum()), value=int(df['kokonaisala'].sum()), step=10)
+	st.session_state.area_input = st.number_input('**Kohteen kokonaisala (m2)**', min_value=int(df['kokonaisala'].sum()), value=st.session_state.area_input, step=10)
 
 def calc_p_lat_arvo(p_lat):
 	if p_lat < 25:
@@ -300,7 +303,7 @@ if out_df.empty:
 	st.stop()
 
 # Use the provided total_area_input as the denominator for normalization
-total_area = int(total_area_input)
+total_area = st.session_state.area_input
 non_arvo_area = max(0, total_area - int(out_df['kokonaisala'].sum()))
 if non_arvo_area > 0:
 	# add a placeholder row for the non-evaluated area with zeroed coefficients
