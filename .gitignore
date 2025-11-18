@@ -166,3 +166,4 @@ cache
 secrets.toml
 allas_conf
 local_data
+temp
