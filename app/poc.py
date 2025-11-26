@@ -510,7 +510,7 @@ with col_l:
 	st.plotly_chart(sunburst_from(out_df, 'ekotehokas_lumo', 'LUMO', total_area=total_area), width='stretch')
 	lumo_sum = out_df['ekotehokas_lumo'].sum()
 	lumo_norm = round((lumo_sum / total_area) if total_area > 0 else 0, 4)
-	st.metric('**Luonnon monimuotisuus -arvo**', value=round(lumo_norm,2))
+	st.metric('**Luonnon monimuotoisuus -arvo**', value=round(lumo_norm,2))
 with col_i:
 	if 'ekotehokas_ilm' in out_df.columns:
 		st.plotly_chart(sunburst_from(out_df, 'ekotehokas_ilm', 'ILMASTOVIISAUS', total_area=total_area), width='stretch')
